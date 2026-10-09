@@ -1,0 +1,11 @@
+* text=auto
+
+# 保证在任意平台检出时换行一致，gradlew 必须为 LF 才能在 Linux CI 执行
+gradlew text eol=lf
+*.bat text eol=crlf
+*.gradle.kts text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.java text eol=lf
+
+*.jar binary

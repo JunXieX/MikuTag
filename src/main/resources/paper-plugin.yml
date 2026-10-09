@@ -1,0 +1,23 @@
+name: MikuTag
+version: '${version}'
+main: dev.junxiex.mikutag.MikuTagPlugin
+loader: dev.junxiex.mikutag.MikuTagLoader
+api-version: '26.2'
+folia-supported: true
+author: JunXieX
+description: 基于 Dialog 菜单的高性能称号插件（Paper/Folia）
+
+# 权限在插件启用时通过代码注册（见 MikuTagPlugin#registerBasePermissions），
+# 避免 paper-plugin.yml 的 permissions 列表格式与文档不一致的风险。
+
+dependencies:
+  server:
+    Vault:
+      load: BEFORE
+      required: false
+      # Paper 插件类加载隔离：必须加入 Vault 的 classpath 才能引用其 Economy 接口
+      join-classpath: true
+    PlaceholderAPI:
+      load: BEFORE
+      required: false
+      join-classpath: true

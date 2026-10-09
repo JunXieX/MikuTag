@@ -1,0 +1,113 @@
+# MikuTag 消息文件（MiniMessage 格式）
+# 支持 <prefix> 前缀标签，会在解析前展开为下方 prefix 的值。
+
+prefix: "<gradient:#7fd7ff:#b48cff>[MikuTag]</gradient> "
+
+error:
+  missing-message: "<red>Missing message: {key}"
+  player-only: "<prefix><red>该操作只能由玩家执行。"
+  no-permission: "<prefix><red>你没有权限使用该功能。"
+
+command:
+  console-no-menu: "<prefix><red>控制台无法打开菜单，请指定玩家。"
+  player-not-found: "<prefix><red>未找到玩家 {player}。"
+  title-not-found: "<prefix><red>未找到称号 {title}。"
+  reload: "<prefix><green>配置已重载，共加载 {count} 个称号。"
+  unequip-ok: "<prefix><green>已卸下当前称号。"
+  unequip-none: "<prefix><yellow>你当前没有佩戴任何称号。"
+  give-ok: "<prefix><green>已给予 {player} 称号 {title}（{duration}）。"
+  data-loading: "<prefix><yellow>{player} 的称号数据仍在加载中，请稍后重试。"
+  take-ok: "<prefix><red>已收回 {player} 的称号 {title}。"
+  take-not-owned: "<prefix><yellow>{player} 并未拥有称号 {title}。"
+  create-ok: "<prefix><green>已创建称号 <white>{title}<gray>（ID：{id}，{duration}）"
+  create-req: "<gray>，获取条件 {requirements}"
+  import-start: "<prefix><yellow>开始从 PlayerTitle 导入，请稍候……"
+  import-done: "<prefix><green>导入完成：称号 {titles} 个（跳过 {skippedTitles}），玩家持有 {grants} 条（跳过 {skippedGrants}）。"
+  import-warning: "<prefix><yellow>⚠ {text}"
+  import-failed: "<prefix><red>导入失败：{reason}"
+  info-header: "<prefix><gray>MikuTag v{version} — 存储：{storage}，称号：{titles}，经济：{vault}"
+  info-body: "<prefix><gray>缓存玩家：{cached}，待写回：{pending}，占位符：{papi}"
+  enabled: "<green>可用"
+  disabled: "<red>不可用"
+
+title:
+  duration-permanent: "<gray>永久"
+  duration-days: "<gray>{days} 天"
+
+menu:
+  shop-title: "<gold>称号商城"
+  warehouse-title: "<gold>我的称号"
+  admin-title: "<red>称号管理"
+  page-info: "<gray>第 {page}/{total} 页 · 共 {count} 个称号"
+  prev-page: "<yellow>← 上一页"
+  next-page: "<yellow>下一页 →"
+  back-button: "<gray>返回"
+  empty-shop: "<gray>暂无可购买的称号。"
+  empty-warehouse: "<gray>你还没有任何称号。"
+  equipped-mark: "<green>✔ 佩戴中"
+  unequip-button: "<red>卸下当前称号"
+  buy-button: "<green>购买"
+  cancel-button: "<gray>取消"
+  loading: "<prefix><yellow>你的称号数据仍在加载中，请稍后再试。"
+  load-failed: "<prefix><red>称号数据加载失败，请稍后重试或联系管理员。"
+  failed: "<prefix><red>菜单打开失败，请查看控制台日志。"
+  feedback-title: "<gold>提示"
+
+detail:
+  duration: "<gray>有效期：<white>{duration}"
+  price: "<gray>价格：<gold>{price}"
+  permission: "<gray>获取条件：<white>拥有权限 {permission}"
+  free: "<gray>获取方式：<green>免费领取"
+  owned: "<green>你已拥有该称号。"
+  expired: "<red>该称号已过期。"
+
+purchase:
+  ok: "<prefix><green>购买成功，获得称号：{title}（{duration}）"
+  already-owned: "<prefix><yellow>你已经拥有该称号了。"
+  no-money: "<prefix><red>余额不足，购买该称号需要 {price}。"
+  no-permission: "<prefix><red>你没有购买该称号所需的权限。"
+  not-sellable: "<prefix><red>该称号无法直接购买。"
+  failed: "<prefix><red>购买失败，请稍后再试。"
+
+warehouse:
+  equip-ok: "<prefix><green>已佩戴称号：{title}"
+  unequip-ok: "<prefix><green>已卸下当前称号。"
+  not-owned: "<prefix><red>你尚未拥有该称号。"
+  expired: "<prefix><red>该称号已过期，无法佩戴。"
+  failed: "<prefix><red>操作失败，请稍后再试。"
+
+admin:
+  new-button: "<green>+ 新建称号"
+  editor-title-new: "<green>新建称号"
+  editor-title-edit: "<yellow>编辑称号：{id}"
+  save-button: "<green>保存"
+  delete-button: "<red>删除"
+  delete-confirm-title: "<red>确认删除"
+  delete-confirm-body: "<gray>确定要删除称号 <white>{title}<gray> 吗？该操作不可撤销，且会同时移除所有玩家持有的该称号。"
+  deleted: "<prefix><green>已删除称号 {title}。"
+  saved: "<prefix><green>已保存称号 {id}。"
+  invalid-id: "<prefix><red>称号 ID 非法（仅允许字母、数字、下划线、短横线，且不能为空）。"
+  invalid-icon: "<prefix><red>图标非法（{value} 不是有效的物品材质名）。"
+  invalid-days: "<prefix><red>天数非法（{value} 不是有效整数）。"
+  invalid-requirement: "<prefix><red>获取条件非法（{value}），每行格式：VAULT:金额 或 PERMISSION:权限节点。"
+  invalid-name: "<prefix><red>称号名称不能为空。"
+  exists: "<prefix><red>称号 {id} 已存在。"
+  tooltip-id: "<gray>ID：{id}"
+  input:
+    id: "<gray>称号 ID"
+    name: "<gray>称号名称（支持 MiniMessage）"
+    icon: "<gray>图标材质（如 NAME_TAG）"
+    requirements: "<gray>获取条件（每行一条：VAULT:金额 或 PERMISSION:节点；留空=免费）"
+    days: "<gray>有效天数（0 = 永久）"
+    sellable: "<gray>是否在商城出售"
+    description: "<gray>描述（多行用 | 分隔，支持 MiniMessage）"
+  hint:
+    description: "<gray>多行请用 | 分隔。"
+    requirements: "<gray>可叠加多个条件（须全部满足）。例：VAULT:1000 与 PERMISSION:mikutag.vip 各占一行。"
+
+time:
+  zero: "<gray>0 秒"
+  day: "<white>{value}<gray> 天 "
+  hour: "<white>{value}<gray> 时 "
+  minute: "<white>{value}<gray> 分 "
+  second: "<white>{value}<gray> 秒"

@@ -1,0 +1,54 @@
+# MikuTag 配置
+
+storage:
+  # 存储类型：sqlite / mysql / mariadb
+  # 插件会在开服时读取此项，仅解析并下载对应的 JDBC 驱动（由 Paper 缓存到服务端
+  # libraries 目录，已存在则直接复用）；插件 JAR 内不内置任何驱动。
+  type: sqlite
+
+  # 数据异步批量写回的间隔（秒）
+  flush-interval-seconds: 30
+
+  mysql:
+    host: 127.0.0.1
+    port: 3306
+    database: mikutag
+    user: root
+    password: ""
+    # 附加连接参数（不要带前导 ?）
+    parameters: "useSSL=false&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+
+  mariadb:
+    host: 127.0.0.1
+    port: 3306
+    database: mikutag
+    user: root
+    password: ""
+    parameters: "useSsl=false&characterEncoding=utf8"
+
+menu:
+  # 商城 / 仓库 / 管理菜单每页显示的称号数量（允许范围 1-20）
+  page-size: 8
+  # 同一玩家两次菜单点击的最小间隔（毫秒）。菜单点击事件由客户端触发并可被高频重放，
+  # 此节流用于防止重复购买/重复点击。0 表示不限制。
+  click-throttle-ms: 200
+
+sync:
+  # 称号定义的定时重读间隔（秒），仅当 storage.type 为 mysql / mariadb 时生效。
+  # 多服共享同一个数据库时，库即唯一数据源；各服按此间隔把称号表重新读入内存缓存，
+  # 其他服做的增删改即自然生效。SQLite 为本地单文件库、天然单服，不启用定时重读。
+  title-interval-seconds: 10
+
+placeholder:
+  # 玩家未佩戴称号时 %mikutag_title% 的返回内容
+  empty: ""
+
+display:
+  # 显示装饰：只在展示称号时拼接到名称两侧（菜单、占位符等），不会写入称号定义本身。
+  # 支持 MiniMessage；留空表示不加。改这里即可全局调整显示样式，无需逐个修改称号。
+  prefix: ""
+  suffix: ""
+
+behavior:
+  # 玩家获得新称号时是否自动佩戴（仅当前未佩戴任何称号时生效）
+  auto-equip: false
