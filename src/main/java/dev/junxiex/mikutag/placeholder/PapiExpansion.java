@@ -82,12 +82,26 @@ public final class PapiExpansion extends PlaceholderExpansion {
             case "title" -> equipped(data, Form.LEGACY);
             case "title_strip" -> equipped(data, Form.STRIPPED);
             case "title_raw" -> equipped(data, Form.RAW);
-            case "title_id" -> data == null ? "" : data.equipped();
+            case "title_id" -> equippedId(data);
             case "count" -> String.valueOf(plugin.tagService().ownedCount(player.getUniqueId()));
             default -> key.startsWith("has_")
                     ? hasTitle(data, params.substring(4).toLowerCase(Locale.ROOT))
                     : null;
         };
+    }
+
+    /**
+     * 当前佩戴的称号 ID；已过期的佩戴视为未佩戴。
+     * <p>
+     * 佩戴状态不会因称号到期自动清除（清除需回到玩家线程），因此这里按"是否仍有效拥有"过滤，
+     * 否则聊天/Tab 会一直显示一个早已过期的称号。离线玩家同样适用（纯内存判断）。
+     */
+    private String equippedId(PlayerTagData data) {
+        if (data == null) {
+            return "";
+        }
+        String id = data.equipped();
+        return id.isEmpty() || !data.owns(id, System.currentTimeMillis()) ? "" : id;
     }
 
     private enum Form {
@@ -97,12 +111,13 @@ public final class PapiExpansion extends PlaceholderExpansion {
     }
 
     private String equipped(PlayerTagData data, Form form) {
-        if (data == null || data.equipped().isEmpty()) {
+        String id = equippedId(data);
+        if (id.isEmpty()) {
             return plugin.configManager().placeholderEmpty();
         }
         // 一次取整体快照：title 与其 generation 成对读取，不会跨快照撕裂
         TitleManager.Snapshot snap = plugin.titleManager().current();
-        Title title = snap.byId().get(data.equipped());
+        Title title = snap.byId().get(id);
         if (title == null) {
             return plugin.configManager().placeholderEmpty();
         }

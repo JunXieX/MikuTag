@@ -9,8 +9,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 称号定义的内存快照。
@@ -44,6 +46,29 @@ public final class TitleManager {
     /** 串行化所有快照替换（reload/save/delete）；持锁区间不含任何阻塞 IO。 */
     private final Object writeLock = new Object();
 
+    /**
+     * 尚未确认落库的本地改动明细，由 {@link #writeLock} 保护。
+     * <p>
+     * 保存/删除是"先改内存快照、后异步落库"，存在两个窗口需要兜底：
+     * <ol>
+     *   <li>重读（定时同步 / {@code /mikutag reload}）在写库完成前发生：若直接以库内容整体覆盖，
+     *       刚保存的称号会被库中的旧版本打回原样。故重读时把这些改动叠加到库内容之上；</li>
+     *   <li>关服时异步写库任务可能还没执行就被取消：{@link #flushPendingMutations()} 同步补写。</li>
+     * </ol>
+     * 值为 {@link Title} 实例本身，落库回调通过引用相等判断"是否仍是最新版本"。
+     */
+    private final Map<String, Title> dirtyUpserts = new HashMap<>();
+    private final Set<String> dirtyDeletes = new HashSet<>();
+
+    /**
+     * 本地改动版本号，任何一次 save/delete 使其自增，由 {@link #writeLock} 保护。
+     * <p>
+     * 重读需要先读库（阻塞 IO，在锁外）再拿锁替换；若期间发生本地增删改，
+     * 读到的库内容就是"旧于此刻快照"的，直接替换会让刚保存的称号回退。
+     * 故在读取前记录版本号、拿锁后比对，不一致则跳过本轮（下一轮自然一致）。
+     */
+    private long mutationVersion;
+
     public TitleManager(MikuTagPlugin plugin, Storage storage) {
         this.plugin = plugin;
         this.storage = storage;
@@ -59,14 +84,38 @@ public final class TitleManager {
      * @return 内容确有变化并已替换快照返回 {@code true}；无变化返回 {@code false}
      */
     public boolean reloadFromStorage() {
-        List<Title> loaded = storage.loadTitles(); // 阻塞 IO 在锁外
-        long signature = signatureOf(prepared(loaded));
+        long versionBefore;
         synchronized (writeLock) {
-            if (signature == snapshot.signature()) {
+            versionBefore = mutationVersion;
+        }
+        List<Title> loaded = new ArrayList<>(storage.loadTitles()); // 阻塞 IO 在锁外；拷贝一份以便就地叠加改动
+        synchronized (writeLock) {
+            // 读库期间发生了本地增删改：本次读到的内容可能未包含这些改动，跳过本轮，
+            // 否则刚保存的称号会被库中的旧版本覆盖（下一轮重读即可拿到一致内容）。
+            if (mutationVersion != versionBefore) {
+                return false;
+            }
+            // 叠加更早的、尚未落库的本地改动：库内容可能还没包含刚保存的称号 / 仍含刚删除的称号。
+            applyDirtyLocked(loaded);
+            if (signatureOf(prepared(loaded)) == snapshot.signature()) {
                 return false;
             }
             replaceAll(loaded);
             return true;
+        }
+    }
+
+    /**
+     * 把未落库的本地改动叠加到从库读到的内容之上。调用方必须持有 {@link #writeLock}。
+     */
+    private void applyDirtyLocked(List<Title> loaded) {
+        if (dirtyUpserts.isEmpty() && dirtyDeletes.isEmpty()) {
+            return;
+        }
+        loaded.removeIf(t -> dirtyDeletes.contains(t.id()));
+        for (Title title : dirtyUpserts.values()) {
+            loaded.removeIf(t -> t.id().equals(title.id()));
+            loaded.add(title);
         }
     }
 
@@ -138,10 +187,16 @@ public final class TitleManager {
             Map<String, Title> map = new HashMap<>(snapshot.byId());
             map.put(title.id(), title);
             replaceAll(map.values());
+            dirtyUpserts.put(title.id(), title);
+            dirtyDeletes.remove(title.id());
+            mutationVersion++;
         }
         plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
             try {
                 storage.upsertTitle(title);
+                // 仅在确实写入成功后才清除脏标记：写库失败时保留，使重读继续以内存版本为准，
+                // 并在关服时由 flushPendingMutations 再补写一次，避免管理员的改动被旧库内容覆盖。
+                markPersisted(title.id(), title, null);
             } catch (RuntimeException ex) {
                 plugin.getLogger().severe("保存称号 " + title.id() + " 失败: " + ex.getMessage());
             }
@@ -156,13 +211,70 @@ public final class TitleManager {
                 return;
             }
             replaceAll(map.values());
+            dirtyDeletes.add(id);
+            dirtyUpserts.remove(id);
+            mutationVersion++;
         }
         plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
             try {
                 storage.deleteTitle(id);
+                // 同上：仅成功才清除脏标记
+                markPersisted(id, null, id);
             } catch (RuntimeException ex) {
                 plugin.getLogger().severe("删除称号 " + id + " 失败: " + ex.getMessage());
             }
         });
+    }
+
+    /**
+     * 一次本地改动已成功落库，清除其脏标记。
+     * <p>
+     * 只清除"仍是本次任务对应版本"的标记：若期间同一 ID 又被保存（快照中是新的 {@link Title} 实例），
+     * 则保留标记，避免旧任务的完成回调把后续改动误标为已落库。
+     */
+    private void markPersisted(String id, Title saved, String deletedId) {
+        synchronized (writeLock) {
+            if (saved != null) {
+                if (dirtyUpserts.get(id) == saved) {
+                    dirtyUpserts.remove(id);
+                }
+            } else if (dirtyDeletes.contains(deletedId)) {
+                dirtyDeletes.remove(deletedId);
+            }
+        }
+    }
+
+    /**
+     * 停用时同步补写尚未落库的称号改动（保存/删除）。
+     * <p>
+     * 正常的保存/删除任务由异步调度器执行，关服时可能还未运行就被取消；此处兜底一次，
+     * 保证管理员在关服前刚做的改动不丢。调用方须处于关闭阶段（此后不再接受新改动）。
+     */
+    public void flushPendingMutations() {
+        Map<String, Title> upserts;
+        Set<String> deletes;
+        synchronized (writeLock) {
+            if (dirtyUpserts.isEmpty() && dirtyDeletes.isEmpty()) {
+                return;
+            }
+            upserts = new HashMap<>(dirtyUpserts);
+            deletes = new HashSet<>(dirtyDeletes);
+            dirtyUpserts.clear();
+            dirtyDeletes.clear();
+        }
+        for (Title title : upserts.values()) {
+            try {
+                storage.upsertTitle(title);
+            } catch (RuntimeException ex) {
+                plugin.getLogger().severe("关服补写称号 " + title.id() + " 失败: " + ex.getMessage());
+            }
+        }
+        for (String id : deletes) {
+            try {
+                storage.deleteTitle(id);
+            } catch (RuntimeException ex) {
+                plugin.getLogger().severe("关服补删称号 " + id + " 失败: " + ex.getMessage());
+            }
+        }
     }
 }

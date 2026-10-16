@@ -173,6 +173,8 @@ public final class MenuService {
             player.sendMessage(cfg.message("menu.loading"));
             return;
         }
+        // 佩戴的称号若已过期则就地卸下（本方法已在玩家线程），避免仓库长期残留过期佩戴记录
+        plugin.tagService().clearExpiredEquipped(player);
         List<Title> owned = ownedTitles(data);
         int pageSize = cfg.pageSize();
         int totalPages = Math.max(1, (owned.size() + pageSize - 1) / pageSize);

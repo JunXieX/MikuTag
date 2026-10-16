@@ -188,9 +188,15 @@ public final class TagService {
         maybeAutoEquip(player, data, titleId);
     }
 
-    /** 配置开启自动佩戴、且玩家当前未佩戴任何称号时，自动佩戴刚获得的称号。 */
+    /** 配置开启自动佩戴、且玩家当前未佩戴有效称号时，自动佩戴刚获得的称号。 */
     private void maybeAutoEquip(Player player, PlayerTagData data, String titleId) {
-        if (plugin.configManager().autoEquip() && data.equipped().isEmpty()) {
+        if (!plugin.configManager().autoEquip()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        String current = data.equipped();
+        // 佩戴项已过期时按"未佩戴"处理，否则玩家拿到新称号也不会自动佩戴
+        if (current.isEmpty() || !data.owns(current, now)) {
             setEquipped(player, data, titleId);
         }
     }
@@ -211,20 +217,66 @@ public final class TagService {
         return true;
     }
 
-    /** 当前佩戴的称号 ID（未佩戴为空串）。 */
-    public String equippedId(Player player) {
-        PlayerTagData data = data(player);
-        return data == null ? "" : data.equipped();
+    /**
+     * 称号被删除后，清除所有在线玩家缓存中该称号的持有与佩戴记录。
+     * <p>
+     * 库中该称号的记录已随删除级联清理，但在线玩家的内存快照仍保留持有条目；
+     * 若不清理，管理员随后用同一 ID 新建称号时，这些玩家会被误判为"已拥有"而无法购买，
+     * 仓库中也会出现一条来自旧称号的残留记录。清理必须回到各玩家的属主线程执行。
+     */
+    public void purgeDeletedTitle(String titleId) {
+        for (Player player : plugin.getServer().getOnlinePlayers()) {
+            player.getScheduler().run(plugin, task -> {
+                PlayerTagData data = data(player);
+                if (data != null && data.everOwned(titleId)) {
+                    revoke(player, titleId);
+                }
+            }, null);
+        }
     }
 
-    /** 当前佩戴的称号定义（未佩戴或已删除为 null）。 */
-    public Title equippedTitle(Player player) {
+    /** 当前佩戴的称号 ID（未佩戴为空串）。已过期的佩戴视为未佩戴。 */
+    public String equippedId(Player player) {
         PlayerTagData data = data(player);
         if (data == null) {
-            return null;
+            return "";
         }
         String id = data.equipped();
+        // 佩戴的称号自然到期后缓存中不会自动清除，此处按"是否仍有效拥有"过滤，
+        // 避免占位符/API 继续把已过期的称号当成在佩戴。
+        if (!id.isEmpty() && !data.owns(id, System.currentTimeMillis())) {
+            return "";
+        }
+        return id;
+    }
+
+    /** 玩家离线时清理其计数缓存，避免该表随历史玩家无限增长。 */
+    public void invalidateCountCache(UUID uuid) {
+        countCache.remove(uuid);
+    }
+
+    /** 当前佩戴的称号定义（未佩戴、已过期或已删除为 null）。 */
+    public Title equippedTitle(Player player) {
+        String id = equippedId(player);
         return id.isEmpty() ? null : plugin.titleManager().get(id);
+    }
+
+    /**
+     * 若玩家当前佩戴的称号已过期，则就地卸下并落库。
+     * <p>
+     * 佩戴状态不会因称号到期而自动消失，若不清理，玩家的"仓库"里会一直留着一条
+     * 指向已过期称号的佩戴记录（既无法通过卸下按钮之外的路径消除，也会随重连反复出现）。
+     * 必须在玩家属主线程调用。
+     */
+    public void clearExpiredEquipped(Player player) {
+        PlayerTagData data = data(player);
+        if (!ready(data)) {
+            return;
+        }
+        String id = data.equipped();
+        if (!id.isEmpty() && !data.owns(id, System.currentTimeMillis())) {
+            setEquipped(player, data, "");
+        }
     }
 
     /**

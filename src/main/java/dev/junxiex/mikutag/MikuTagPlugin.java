@@ -117,6 +117,12 @@ public final class MikuTagPlugin extends JavaPlugin {
         // 所有修改都已在发生时即时入队，故关闭只需：停掉异步任务 → drain 队列 → 关连接。
         // 不遍历在线玩家读取数据 —— 那些数据归属各自区域线程，主线程读取是数据竞争。
         getServer().getAsyncScheduler().cancelTasks(this);
+        // 称号定义的保存/删除走异步任务，可能刚被 cancelTasks 取消：先同步补写，避免刚保存的称号丢失
+        try {
+            titleManager.flushPendingMutations();
+        } catch (RuntimeException ex) {
+            getLogger().warning("关闭时补写称号定义失败: " + ex.getMessage());
+        }
         try {
             tagStore.drainAndFlush();
         } catch (Exception ex) {

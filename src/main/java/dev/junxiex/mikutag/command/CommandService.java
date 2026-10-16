@@ -318,7 +318,9 @@ public final class CommandService {
             return 0;
         }
         int days = optionalInt(ctx, "days");
-        boolean sellable = !requirements.isEmpty();
+        // 默认进商城出售，与 /mikutag admin 表单的"新建"默认值保持一致。
+        // （曾按"有无条件"决定：免费称号会被置为不出售，导致其在商城中永远无法领取。）
+        boolean sellable = true;
 
         Title title = new Title(id, name, List.of(), Material.NAME_TAG,
                 requirements, days, sellable, 0, System.currentTimeMillis());

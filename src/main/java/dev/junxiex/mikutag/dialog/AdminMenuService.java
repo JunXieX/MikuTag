@@ -259,6 +259,8 @@ public final class AdminMenuService {
             return;
         }
         plugin.titleManager().delete(titleId);
+        // 同步清理在线玩家缓存中的该称号持有/佩戴记录，避免其残留导致"同 ID 重建后误判已拥有"
+        plugin.tagService().purgeDeletedTitle(titleId);
         player.sendMessage(cfg.message("admin.deleted", null, "title", title.displayName()));
         doOpenAdmin(player, page);
     }

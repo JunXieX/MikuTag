@@ -74,6 +74,8 @@ public final class PlayerConnectionListener implements Listener {
         // 避免每次退出都按"称号数量"全量重写该玩家的所有记录
         var uuid = event.getPlayer().getUniqueId();
         plugin.tagStore().remove(uuid);
+        // 计数缓存以玩家 uuid 为键，离线后不会再被求值，必须同步清理，否则随历史玩家无限增长
+        plugin.tagService().invalidateCountCache(uuid);
         loadSeq.remove(uuid); // 会话结束，迟到加载的序号随之失效，避免表无限增长
     }
 }

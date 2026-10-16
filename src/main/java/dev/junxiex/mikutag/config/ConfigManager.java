@@ -107,7 +107,14 @@ public final class ConfigManager {
                 !prefixCfg.isEmpty() || !suffixCfg.isEmpty(),
                 display.generation() + 1);
 
-        storageType = DatabaseType.parse(config.getString("storage.type", "sqlite"));
+        String rawType = config.getString("storage.type", "sqlite");
+        storageType = DatabaseType.parse(rawType);
+        if (rawType == null || !storageType.id().equalsIgnoreCase(rawType.trim())) {
+            // 拼写错误（如 postgres/oracle）会被静默当作 sqlite，导致数据写进本地文件而非远端库，
+            // 这类问题极难自查，故必须显式告警。
+            plugin.getLogger().warning("config.yml 的 storage.type=\"" + rawType
+                    + "\" 无法识别（支持 sqlite / mysql / mariadb），已回退为 sqlite。");
+        }
         String section = storageType.isRemote() ? "storage." + storageType.id() + "." : "";
         if (storageType.isRemote()) {
             dbHost = config.getString(section + "host", "127.0.0.1");

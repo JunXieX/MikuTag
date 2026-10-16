@@ -144,13 +144,24 @@ public final class CustomClickListener implements Listener {
         lastClickAt.remove(event.getPlayer().getUniqueId());
     }
 
+    /**
+     * 点击节流：与上次"被接受"的点击间隔不足 {@code menu.click-throttle-ms} 时丢弃本次点击。
+     * <p>
+     * 被丢弃的点击<b>不</b>刷新时间戳——否则持续快速点击（每次都在阈值内）会让时间戳不断前移，
+     * 玩家一旦开始连点就永远无法再触发菜单。同一玩家的点击由属主线程串行处理，无需额外同步。
+     */
     private boolean isThrottled(Player player) {
         int throttle = plugin.configManager().clickThrottleMillis();
         if (throttle <= 0) {
             return false;
         }
+        UUID uuid = player.getUniqueId();
         long now = System.currentTimeMillis();
-        Long previous = lastClickAt.put(player.getUniqueId(), now);
-        return previous != null && now - previous < throttle;
+        Long previous = lastClickAt.get(uuid);
+        if (previous != null && now - previous < throttle) {
+            return true;
+        }
+        lastClickAt.put(uuid, now);
+        return false;
     }
 }
