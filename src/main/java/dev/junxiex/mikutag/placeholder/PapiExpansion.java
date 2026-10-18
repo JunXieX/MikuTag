@@ -44,8 +44,6 @@ public final class PapiExpansion extends PlaceholderExpansion {
 
     private final MikuTagPlugin plugin;
     private final Map<String, Cached> renderCache = new ConcurrentHashMap<>();
-    /** 上次执行陈旧条目清理时的称号快照代号，保证每个代号只清理一次。 */
-    private volatile long prunedGeneration = -1;
 
     public PapiExpansion(MikuTagPlugin plugin) {
         this.plugin = plugin;
@@ -131,11 +129,15 @@ public final class PapiExpansion extends PlaceholderExpansion {
         if (cached == null || cached.titleGeneration() != snap.generation()
                 || cached.displayGeneration() != disp.generation()) {
             cached = render(title, disp, snap.generation(), disp.generation());
-            if (renderCache.size() >= RENDER_CACHE_MAX && prunedGeneration != snap.generation()) {
+            if (renderCache.size() >= RENDER_CACHE_MAX) {
+                // 缓存以称号 ID 为键，正常情况下上限即称号总数；一旦超限说明有陈旧条目
+                // （称号被删/改名），此时清掉与本轮快照或显示配置不符的条目。
+                // 不能只按 generation 判断：同一代号内也可能因改名产生旧键残留。
                 long generation = snap.generation();
-                // 清理基于旧称号快照的条目（含已删除称号）；每个代号只清一次，避免高频全表扫描
-                renderCache.values().removeIf(entry -> entry.titleGeneration() != generation);
-                prunedGeneration = generation;
+                long displayGeneration = disp.generation();
+                renderCache.values().removeIf(entry ->
+                        entry.titleGeneration() != generation
+                                || entry.displayGeneration() != displayGeneration);
             }
             renderCache.put(title.id(), cached);
         }

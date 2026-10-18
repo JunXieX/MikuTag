@@ -228,6 +228,9 @@ public final class PlayerTitleImporter {
         // ---- 2. 玩家持有与佩戴 ----
         // 在线判定用 tagStore 缓存命中（进服放入、退服移除）：缓存命中意味着该玩家
         // 的数据正由写回队列管理，直接写库会被覆盖，故跳过；离线玩家无写回风险，可安全写。
+        // 快照前先把待写回队列落盘：离线玩家刚被收回/发放的记录可能仍在队列里，
+        // 不落盘会读到旧数据，从而重复写入本应跳过的记录。
+        plugin.tagStore().drainAndFlush();
         Storage.PlayerSnapshot snapshot = storage.loadPlayerSnapshot();
         Map<UUID, Map<String, Long>> existingOwned = snapshot.owned();
         Map<UUID, String> existingEquipped = snapshot.equipped();

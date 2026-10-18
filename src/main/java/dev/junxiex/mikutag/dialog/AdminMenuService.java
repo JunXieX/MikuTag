@@ -105,11 +105,14 @@ public final class AdminMenuService {
         if (creating) {
             inputs.add(text("id", "admin.input.id", "", 64));
         }
-        inputs.add(text("name", "admin.input.name", creating ? "" : title.name(), 128));
+        // 输入上限需与存储能力匹配：表单回填时会按 maxLength 截断，
+        // 若上限小于已有数据（如从 PlayerTitle 导入的长名称/多行描述），
+        // 管理员仅修改一个字段再保存，就会把未编辑的内容静默截断丢失。
+        inputs.add(text("name", "admin.input.name", creating ? "" : title.name(), 255));
         inputs.add(text("icon", "admin.input.icon",
                 creating ? Material.NAME_TAG.name() : title.icon().name(), 64));
         inputs.add(text("requirements", "admin.input.requirements",
-                creating ? "" : Requirement.toText(title.requirements()), 256));
+                creating ? "" : Requirement.toText(title.requirements()), 1024));
         inputs.add(text("days", "admin.input.days",
                 creating ? "0" : String.valueOf(title.durationDays()), 8));
         inputs.add(DialogInput.bool("sellable", cfg.message("admin.input.sellable"))
@@ -118,7 +121,7 @@ public final class AdminMenuService {
                 .onFalse("false")
                 .build());
         inputs.add(text("description", "admin.input.description",
-                creating ? "" : joinDescription(title.description()), 256));
+                creating ? "" : joinDescription(title.description()), 2048));
 
         List<DialogBody> bodies = new ArrayList<>();
         bodies.add(DialogBody.plainMessage(cfg.message("admin.hint.requirements")));
@@ -160,12 +163,13 @@ public final class AdminMenuService {
     public void handleSave(Player player, String titleId, DialogResponseView view, int page) {
         ConfigManager cfg = plugin.configManager();
         boolean creating = titleId == null || titleId.isEmpty();
-        String id = creating ? trim(view.getText("id")) : titleId;
+        // 仅在新建时规范化 ID；编辑必须沿用原标题的 ID，否则会把大小写不同的旧 ID 数据
+        // 另存为一条新称号（旧记录残留），且原有玩家的持有记录也与之脱钩。
+        String id = creating ? trim(view.getText("id")).toLowerCase(Locale.ROOT) : titleId;
         if (!Title.isValidId(id)) {
             fail(player, cfg.message("admin.invalid-id"), titleId, page);
             return;
         }
-        id = id.toLowerCase(Locale.ROOT);
         if (creating && plugin.titleManager().get(id) != null) {
             fail(player, cfg.message("admin.exists", Map.of("id", id)), titleId, page);
             return;

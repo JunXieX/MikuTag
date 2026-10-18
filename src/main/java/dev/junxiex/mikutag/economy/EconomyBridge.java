@@ -36,16 +36,6 @@ final class EconomyBridge {
         return response.transactionSuccess();
     }
 
-    static boolean deposit(Player player, double amount) {
-        var rsp = Bukkit.getServicesManager()
-                .getRegistration(net.milkbowl.vault.economy.Economy.class);
-        if (rsp == null) {
-            return false;
-        }
-        var response = rsp.getProvider().depositPlayer(player, amount);
-        return response.transactionSuccess();
-    }
-
     static String format(double amount) {
         var rsp = Bukkit.getServicesManager()
                 .getRegistration(net.milkbowl.vault.economy.Economy.class);

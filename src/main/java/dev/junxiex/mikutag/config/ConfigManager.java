@@ -103,7 +103,8 @@ public final class ConfigManager {
                     + PAGE_SIZE_MIN + "-" + PAGE_SIZE_MAX + "，已自动钳制");
         }
         pageSize = Math.max(PAGE_SIZE_MIN, Math.min(PAGE_SIZE_MAX, size));
-        clickThrottleMillis = Math.max(0, config.getInt("menu.click-throttle-ms", 200));
+        // 上限 10 秒：误填成很大的值（如 20000）会让菜单几乎完全点不动，且极难自查
+        clickThrottleMillis = Math.max(0, Math.min(10_000, config.getInt("menu.click-throttle-ms", 200)));
         flushIntervalSeconds = Math.max(5, config.getInt("storage.flush-interval-seconds", 30));
         titleSyncIntervalSeconds = Math.max(2, config.getInt("sync.title-interval-seconds", 10));
         placeholderEmpty = config.getString("placeholder.empty", "");

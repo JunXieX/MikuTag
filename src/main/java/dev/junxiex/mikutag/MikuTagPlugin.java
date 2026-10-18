@@ -88,7 +88,14 @@ public final class MikuTagPlugin extends JavaPlugin {
         this.activeStorageType = type;
 
         titleManager = new TitleManager(this, storage);
-        titleManager.reloadFromStorage();
+        try {
+            titleManager.reloadFromStorage();
+        } catch (RuntimeException e) {
+            // 读称号失败时插件无法提供任何功能，直接停用；连接由 onDisable 统一关闭
+            getLogger().severe("读取称号列表失败，插件禁用：" + e.getMessage());
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
         tagStore = new PlayerTagStore(storage);
         tagService = new TagService(this, tagStore);
         economyHook = new EconomyHook(this);
@@ -110,8 +117,12 @@ public final class MikuTagPlugin extends JavaPlugin {
     @Override
     public void onDisable() {
         MikuTagAPI.shutdown();
-        // 存储初始化失败时 tagStore 为 null，需判空避免 NPE
+        // 存储初始化成功后、tagStore 建立前的任何失败都会走到这里：
+        // 此时 tagStore 为 null，但数据库连接已打开，必须关闭，否则句柄泄漏。
         if (tagStore == null) {
+            if (storage != null) {
+                storage.close();
+            }
             return;
         }
         // 所有修改都已在发生时即时入队，故关闭只需：停掉异步任务 → drain 队列 → 关连接。

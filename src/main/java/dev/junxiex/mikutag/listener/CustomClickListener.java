@@ -86,9 +86,16 @@ public final class CustomClickListener implements Listener {
                         ClickPayload.WAREHOUSE, click.page());
             }
             case ClickPayload.WH_UNEQUIP -> {
-                service.unequip(player);
-                menu.feedback(player, plugin.configManager().message("warehouse.unequip-ok"),
-                        ClickPayload.WAREHOUSE, click.page());
+                // 卸下按钮只在"仓库中确有有效佩戴"时渲染；但按钮可被重放，
+                // 若此时已无有效佩戴（例如称号刚到期），必须回"未佩戴"而非谎报成功。
+                if (service.equippedId(player).isEmpty()) {
+                    menu.feedback(player, plugin.configManager().message("command.unequip-none"),
+                            ClickPayload.WAREHOUSE, click.page());
+                } else {
+                    service.unequip(player);
+                    menu.feedback(player, plugin.configManager().message("warehouse.unequip-ok"),
+                            ClickPayload.WAREHOUSE, click.page());
+                }
             }
             case ClickPayload.ADMIN, ClickPayload.ADMIN_PREV, ClickPayload.ADMIN_NEXT -> {
                 if (requireAdmin(player)) {

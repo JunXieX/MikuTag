@@ -49,7 +49,12 @@ public final class MenuService {
         ConfigManager cfg = plugin.configManager();
         PlayerTagData data = plugin.tagService().data(player);
         if (data == null || !data.loaded()) {
-            player.sendMessage(cfg.message("menu.loading"));
+            // 首次加载失败时缓存中没有数据，玩家不重连就永远打不开菜单；此处主动补拉一次
+            if (plugin.tagService().requestReload(player)) {
+                player.sendMessage(cfg.message("menu.loading"));
+            } else {
+                player.sendMessage(cfg.message("menu.load-failed"));
+            }
             return;
         }
         List<Title> titles = shopTitles(data);
@@ -113,7 +118,11 @@ public final class MenuService {
         ConfigManager cfg = plugin.configManager();
         PlayerTagData data = plugin.tagService().data(player);
         if (data == null || !data.loaded()) {
-            player.sendMessage(cfg.message("menu.loading"));
+            if (plugin.tagService().requestReload(player)) {
+                player.sendMessage(cfg.message("menu.loading"));
+            } else {
+                player.sendMessage(cfg.message("menu.load-failed"));
+            }
             return;
         }
         Title title = plugin.titleManager().get(titleId);
@@ -170,7 +179,11 @@ public final class MenuService {
         ConfigManager cfg = plugin.configManager();
         PlayerTagData data = plugin.tagService().data(player);
         if (data == null || !data.loaded()) {
-            player.sendMessage(cfg.message("menu.loading"));
+            if (plugin.tagService().requestReload(player)) {
+                player.sendMessage(cfg.message("menu.loading"));
+            } else {
+                player.sendMessage(cfg.message("menu.load-failed"));
+            }
             return;
         }
         // 佩戴的称号若已过期则就地卸下（本方法已在玩家线程），避免仓库长期残留过期佩戴记录

@@ -94,6 +94,11 @@ public final class MikuTagAPI {
         if (p == null || player == null || titleId == null) {
             return;
         }
+        // 校验称号存在：否则会给玩家写入一条指向不存在称号的持有记录（只占内存与库，永远无法佩戴）
+        if (p.titleManager().get(titleId) == null) {
+            p.getLogger().warning("MikuTagAPI.grantTitle 收到不存在的称号 ID: " + titleId);
+            return;
+        }
         player.getScheduler().run(p, task -> p.tagService().grant(player, titleId, days), null);
     }
 

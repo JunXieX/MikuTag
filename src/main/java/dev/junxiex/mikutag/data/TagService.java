@@ -47,6 +47,9 @@ public final class TagService {
 
     private final Map<UUID, CountCache> countCache = new ConcurrentHashMap<>();
 
+    /** 正在补拉数据的玩家，避免连点菜单时重复发起数据库查询。 */
+    private final Map<UUID, Boolean> reloading = new ConcurrentHashMap<>();
+
     public TagService(MikuTagPlugin plugin, PlayerTagStore store) {
         this.plugin = plugin;
         this.store = store;
@@ -63,8 +66,9 @@ public final class TagService {
     /**
      * 购买称号：全部条件（AND）校验通过后才扣款授予。
      * <p>
-     * 金币条件先按总额校验余额，再逐条扣款；某条扣款失败（余额被并发变动等）时
-     * 退回已扣部分，避免玩家钱花了称号没到手。
+     * 金币条件按总额<b>一次性</b>扣款：多条 VAULT 条件逐条扣款会让按笔计费的经济插件
+     * 重复收取手续费，且中途失败需要回滚，玩家账面会短暂出现多笔流水。先按总额校验余额，
+     * 再单次扣款即可，失败即未扣款，无需回滚。
      */
     public BuyResult buy(Player player, Title title) {
         PlayerTagData data = data(player);
@@ -94,21 +98,13 @@ public final class TagService {
                 }
             }
         }
-        if (vaultTotal > 0 && !plugin.economyHook().has(player, vaultTotal)) {
-            return BuyResult.NO_MONEY;
-        }
-        double spent = 0;
-        for (Requirement r : title.requirements()) {
-            if (r.type() == Requirement.ReqType.VAULT && r.amount() > 0) {
-                if (!plugin.economyHook().withdraw(player, r.amount())) {
-                    if (spent > 0 && !plugin.economyHook().deposit(player, spent)) {
-                        // 回滚也失败：玩家已扣部分未退回，必须留下可追溯记录（人工补退）
-                        plugin.getLogger().severe("玩家 " + player.getName() + " 购买称号 " + title.id()
-                                + " 时扣款中断且回滚失败，已扣 " + spent + " 未退回，请人工处理。");
-                    }
-                    return BuyResult.NO_MONEY;
-                }
-                spent += r.amount();
+        if (vaultTotal > 0) {
+            if (!plugin.economyHook().has(player, vaultTotal)) {
+                return BuyResult.NO_MONEY;
+            }
+            if (!plugin.economyHook().withdraw(player, vaultTotal)) {
+                // 已经过余额校验；仍失败说明余额被并发变动或经济插件拒绝，此时尚未产生任何扣款
+                return BuyResult.NO_MONEY;
             }
         }
         grantInternal(player, data, title.id(), title.durationMillis(), now);
@@ -213,6 +209,9 @@ public final class TagService {
         countCache.remove(data.uuid());
         if (previous.equals(titleId)) {
             store.enqueueState(data);
+            // 被收回的正是当前佩戴的称号：必须广播变化，否则聊天/Tab 等监听方会继续显示已不存在的称号
+            plugin.getServer().getPluginManager().callEvent(
+                    new TitleEquipEvent(player, previous, ""));
         }
         return true;
     }
@@ -253,6 +252,48 @@ public final class TagService {
     /** 玩家离线时清理其计数缓存，避免该表随历史玩家无限增长。 */
     public void invalidateCountCache(UUID uuid) {
         countCache.remove(uuid);
+        reloading.remove(uuid);
+    }
+
+    /**
+     * 玩家数据缺失（首次进服加载失败、或加载仍未完成）时触发一次重新加载。
+     * <p>
+     * 进服加载失败后缓存中不会留下任何数据，若玩家不重连就永远无法使用称号。
+     * 这里让菜单/指令入口可以主动补拉一次，数据库恢复后无需玩家重连即可恢复。
+     * <p>
+     * 同一玩家同时只允许一次补拉：菜单按钮可被连点，若不做去重，每次点击都会各自
+     * 发起一次数据库查询（数据库异常时更会堆积）。
+     *
+     * @return 是否确实发起了一次加载
+     */
+    public boolean requestReload(Player player) {
+        if (data(player) != null) {
+            return false;
+        }
+        UUID uuid = player.getUniqueId();
+        // 玩家名在进入异步任务前取好：Bukkit 实体 API 不应在异步线程读取
+        String name = player.getName();
+        if (reloading.putIfAbsent(uuid, Boolean.TRUE) != null) {
+            return true; // 已有一次补拉在途，本次不重复发起
+        }
+        plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
+            try {
+                PlayerTagData loaded = store.loadFromStorage(uuid);
+                player.getScheduler().run(plugin, t -> {
+                    // 补拉期间可能已由正常进服流程写入缓存（且之后又发生过修改）：
+                    // 只在仍无数据时写入，避免用较旧的库快照覆盖更新的内存状态。
+                    if (player.isOnline() && store.get(uuid) == null) {
+                        store.put(loaded);
+                    }
+                }, null);
+            } catch (RuntimeException ex) {
+                plugin.getLogger().warning("重新加载玩家 " + name + " 的称号数据失败: "
+                        + ex.getMessage());
+            } finally {
+                reloading.remove(uuid);
+            }
+        });
+        return true;
     }
 
     /** 当前佩戴的称号定义（未佩戴、已过期或已删除为 null）。 */

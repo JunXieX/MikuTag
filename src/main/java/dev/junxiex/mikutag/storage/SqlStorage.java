@@ -280,6 +280,11 @@ public final class SqlStorage implements Storage {
                      ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) {
                         String id = rs.getString("id");
+                        if (!Title.isValidId(id)) {
+                            // 手工改库/旧数据可能出现非法 ID：跳过该行而非让整张表加载失败
+                            logger.warning("称号表存在非法 ID（" + id + "），已跳过该行");
+                            continue;
+                        }
                         String iconName = rs.getString("icon");
                         Material icon = Material.matchMaterial(iconName == null ? "" : iconName);
                         titles.add(new Title(

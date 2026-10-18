@@ -48,6 +48,9 @@ public final class PlayerConnectionListener implements Listener {
                 // 玩家将永久停留在"数据加载中"且控制台毫无线索
                 plugin.getLogger().severe("加载玩家 " + uuid + " 的称号数据失败: " + ex.getMessage()
                         + "（该玩家本次会话无法使用称号，请检查数据库）");
+                // 清掉本次会话的加载序号：否则后续重试（如数据库恢复后重新进服）会被
+                // 迟到判定拦下，玩家在该会话里将永远无法加载成功。
+                loadSeq.remove(uuid, token);
                 player.getScheduler().run(plugin, t -> {
                     if (player.isOnline()) {
                         player.sendMessage(plugin.configManager().message("menu.load-failed"));

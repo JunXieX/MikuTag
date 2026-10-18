@@ -85,19 +85,6 @@ public final class EconomyHook {
         }
     }
 
-    /** 存款（用于多条件扣款失败后的回滚）。返回是否成功。必须在玩家线程调用。 */
-    public boolean deposit(Player player, double amount) {
-        if (!available()) {
-            return false;
-        }
-        try {
-            return EconomyBridge.deposit(player, amount);
-        } catch (Throwable t) {
-            warnOnce(t);
-            return false;
-        }
-    }
-
     /** 金额展示（交由经济插件格式化）。 */
     public String format(double amount) {
         if (!available()) {

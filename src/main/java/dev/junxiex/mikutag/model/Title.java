@@ -22,6 +22,9 @@ public final class Title {
     /** 合法的称号 ID：字母/数字/下划线/短横线，1-64 位。 */
     private static final Pattern ID_PATTERN = Pattern.compile("[a-zA-Z0-9_\\-]{1,64}");
 
+    /** 数据库列宽：mikutag_titles.name VARCHAR(255)。超长会在 MySQL 严格模式下直接写入失败。 */
+    private static final int NAME_MAX_LENGTH = 255;
+
     /**
      * 可执行/可交互的 MiniMessage 事件标签。称号名称与描述允许使用样式标签（颜色/加粗等），
      * 但不允许携带 {@code <click>}/{@code <hover>}/{@code <insertion>}——
@@ -60,6 +63,10 @@ public final class Title {
         this.id = id;
         // 名称与描述在入库/渲染前统一剔除事件标签，避免称号文本携带命令执行等能力
         String safeName = sanitize(name);
+        if (safeName.length() > NAME_MAX_LENGTH) {
+            // 与列宽对齐，避免 MySQL 严格模式下整条 upsert 失败（导入/管理保存都会受影响）
+            safeName = safeName.substring(0, NAME_MAX_LENGTH);
+        }
         this.name = safeName.isBlank() ? id : safeName;
         if (description == null || description.isEmpty()) {
             this.description = List.of();
@@ -162,8 +169,10 @@ public final class Title {
         }
         List<String> lines = new ArrayList<>();
         for (String line : raw.split("\n")) {
-            if (!line.isBlank()) {
-                lines.add(line);
+            // 兼容手工改库留下的 CRLF：只按 \n 拆分时行尾会残留 \r，渲染时会多出异常字符
+            String trimmed = line.endsWith("\r") ? line.substring(0, line.length() - 1) : line;
+            if (!trimmed.isBlank()) {
+                lines.add(trimmed);
             }
         }
         return lines;
