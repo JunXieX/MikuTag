@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "dev.junxiex"
-version = "1.3.0"
+version = "1.4.0"
 description = "MikuTag - Paper/Folia title plugin with dialog menus"
 
 java {
