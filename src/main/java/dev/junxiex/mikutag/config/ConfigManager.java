@@ -42,8 +42,17 @@ public final class ConfigManager {
     private final MikuTagPlugin plugin;
     private final MiniMessage mm = MiniMessage.miniMessage();
 
-    private volatile Map<String, String> messages = Map.of();
-    private volatile Map<String, Component> constantMessages = Map.of();
+    /**
+     * 消息快照：原始模板与预渲染常量打包为一个不可变对象整体替换。
+     * <p>
+     * 二者必须同源读取——若拆成两个 volatile 字段分别写入，重载瞬间可能出现
+     * "新模板 + 旧预渲染常量"的撕裂，导致同一条消息时新时旧。
+     */
+    private record Messages(Map<String, String> raw, Map<String, Component> constants) {
+        static final Messages EMPTY = new Messages(Map.of(), Map.of());
+    }
+
+    private volatile Messages messages = Messages.EMPTY;
 
     private volatile int pageSize = 8;
     private volatile int clickThrottleMillis = 200;
@@ -151,20 +160,21 @@ public final class ConfigManager {
                 newMessages.put(key, value);
             }
         }
-        messages = Map.copyOf(newMessages);
-
+        // 先建出快照再预渲染：预渲染时的 <prefix> 展开必须与最终快照使用同一份 prefix
+        Messages snapshot = new Messages(Map.copyOf(newMessages), Map.of());
         Map<String, Component> constants = new HashMap<>();
         for (Map.Entry<String, String> e : newMessages.entrySet()) {
             if (e.getValue().indexOf('{') < 0) {
-                constants.put(e.getKey(), mm.deserialize(applyPrefix(e.getValue())));
+                constants.put(e.getKey(), mm.deserialize(applyPrefix(e.getValue(), snapshot)));
             }
         }
-        constantMessages = Map.copyOf(constants);
+        // 模板与预渲染常量一次性整体替换，避免重载瞬间读到跨版本的组合
+        messages = new Messages(snapshot.raw(), Map.copyOf(constants));
     }
 
     /** 取 MiniMessage 消息并渲染为 Component。 */
     public Component message(String key, Map<String, String> placeholders) {
-        Component constant = constantMessages.get(key);
+        Component constant = messages.constants().get(key);
         if (constant != null) {
             return constant;
         }
@@ -282,9 +292,11 @@ public final class ConfigManager {
     }
 
     private String raw(String key, Map<String, String> placeholders) {
-        String raw = messages.get(key);
+        // 整段取同一快照：模板与 prefix 必须来自同一次 loadAll，避免重载途中混用新旧文本
+        Messages snap = messages;
+        String raw = snap.raw().get(key);
         if (raw == null) {
-            raw = messages.getOrDefault("error.missing-message", "<red>Missing message: {key}");
+            raw = snap.raw().getOrDefault("error.missing-message", "<red>Missing message: {key}");
             Map<String, String> merged = new HashMap<>();
             if (placeholders != null) {
                 merged.putAll(placeholders);
@@ -297,14 +309,15 @@ public final class ConfigManager {
                 raw = raw.replace("{" + e.getKey() + "}", e.getValue());
             }
         }
-        return applyPrefix(raw);
+        return applyPrefix(raw, snap);
     }
 
-    private String applyPrefix(String raw) {
+    /** 展开 {@code <prefix>} 标签；prefix 取自与模板同一份消息快照。 */
+    private static String applyPrefix(String raw, Messages snap) {
         if (raw.indexOf("<prefix>") < 0) {
             return raw;
         }
-        return raw.replace("<prefix>", messages.getOrDefault("prefix", ""));
+        return raw.replace("<prefix>", snap.raw().getOrDefault("prefix", ""));
     }
 
     private void saveDefault(String name) {

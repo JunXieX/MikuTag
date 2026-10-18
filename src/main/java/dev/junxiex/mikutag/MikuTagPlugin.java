@@ -133,7 +133,21 @@ public final class MikuTagPlugin extends JavaPlugin {
 
     /** 重新加载 config.yml 与 messages.yml，并重新读取数据库中的称号定义。 */
     public void reloadConfigs() {
+        reloadConfigs(null);
+    }
+
+    /**
+     * 重新加载配置并在称号重读完成后执行回调（任意线程）。
+     * <p>
+     * 称号重读是异步的，需要等待真实结果（例如回报"共加载 N 个称号"）的调用方应使用本方法，
+     * 否则只能拿到重读前的旧数量。
+     */
+    public void reloadConfigs(Runnable afterReload) {
         configManager.loadAll();
+        // Vault 可能是在本插件启用后才装上的：重载时重新探测一次，无需重启服务器
+        if (economyHook != null) {
+            economyHook.recheck();
+        }
         if (configManager.storageType() != activeStorageType) {
             getLogger().warning("config.yml 的 storage.type 已改为 "
                     + configManager.storageType().id() + "，但驱动在启动时已按 "
@@ -148,6 +162,9 @@ public final class MikuTagPlugin extends JavaPlugin {
                 getLogger().warning("重读称号列表失败: " + ex.getMessage());
             }
             applyGlobalState();
+            if (afterReload != null) {
+                afterReload.run();
+            }
         });
     }
 
@@ -251,12 +268,10 @@ public final class MikuTagPlugin extends JavaPlugin {
             }
         }
         for (String node : nodes) {
-            Permission existing = pm.getPermission(node);
-            if (existing != null && existing.getDefault() == PermissionDefault.OP) {
+            // 已存在的节点一律不碰：它可能属于其他插件（管理员误把别人的权限节点写成称号条件），
+            // removePermission + addPermission 会强行改掉对方的默认值与描述，属于越界修改。
+            if (pm.getPermission(node) != null) {
                 continue;
-            }
-            if (existing != null) {
-                pm.removePermission(node);
             }
             try {
                 pm.addPermission(new Permission(node, "称号获取条件权限", PermissionDefault.OP));

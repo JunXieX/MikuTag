@@ -13,6 +13,7 @@ command:
   player-not-found: "<prefix><red>未找到玩家 {player}。"
   title-not-found: "<prefix><red>未找到称号 {title}。"
   reload: "<prefix><green>配置已重载，共加载 {count} 个称号。"
+  reload-start: "<prefix><yellow>正在重载配置……"
   unequip-ok: "<prefix><green>已卸下当前称号。"
   unequip-none: "<prefix><yellow>你当前没有佩戴任何称号。"
   give-ok: "<prefix><green>已给予 {player} 称号 {title}（{duration}）。"

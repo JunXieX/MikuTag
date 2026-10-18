@@ -181,7 +181,10 @@ public final class PlayerTitleImporter {
         Map<Integer, String> idMapping = new LinkedHashMap<>(); // PlayerTitle int id -> MikuTag id
         Map<Integer, List<Requirement>> reqsByTitle = new HashMap<>();
         Map<Integer, Boolean> activityByTitle = new HashMap<>();
-        loadRequirements(source, reqsByTitle, activityByTitle, warnings);
+        // 已有 title_require 行的称号 id：免费称号的条件行类型是 "not"，解析后条件列表为空，
+        // 不能据此判定"没有条件数据"而回退旧列，否则会把免费称号错认为旧的收费类型。
+        Set<Integer> hasRequireRows = new HashSet<>();
+        loadRequirements(source, reqsByTitle, activityByTitle, hasRequireRows, warnings);
 
         int titlesImported = 0;
         int titlesSkipped = 0;
@@ -202,8 +205,8 @@ public final class PlayerTitleImporter {
                 String description = convertLegacyColor(rs.getString("description"));
                 List<Requirement> reqs = reqsByTitle.getOrDefault(ptId, List.of());
                 boolean activity = Boolean.TRUE.equals(activityByTitle.get(ptId));
-                if (reqs.isEmpty() && !activity) {
-                    // 无 require 行：回退旧单类型列
+                if (!hasRequireRows.contains(ptId)) {
+                    // 该称号完全没有 title_require 行：才回退旧单类型列
                     reqs = legacyFallbackRequirements(rs.getString("buy_type"), rs.getInt("amount"),
                             name, warnings);
                     activity = "activity".equalsIgnoreCase(rs.getString("buy_type"));
@@ -286,7 +289,8 @@ public final class PlayerTitleImporter {
 
     /** 读取 title_require；activity 类型记录标记（转成免费+不进商城）。 */
     private static void loadRequirements(Connection source, Map<Integer, List<Requirement>> reqsByTitle,
-                                         Map<Integer, Boolean> activityByTitle, List<String> warnings)
+                                         Map<Integer, Boolean> activityByTitle, Set<Integer> hasRequireRows,
+                                         List<String> warnings)
             throws SQLException {
         try (Statement st = source.createStatement();
              ResultSet rs = st.executeQuery(
@@ -297,6 +301,8 @@ public final class PlayerTitleImporter {
                 if (type == null) {
                     continue;
                 }
+                // 只要存在条件行，就不再回退旧列（"not" = 免费，条件列表本就为空）
+                hasRequireRows.add(titleId);
                 switch (type.toLowerCase(Locale.ROOT)) {
                     case "vault" -> reqsByTitle.computeIfAbsent(titleId, k -> new ArrayList<>())
                             .add(Requirement.vault(rs.getDouble("amount")));

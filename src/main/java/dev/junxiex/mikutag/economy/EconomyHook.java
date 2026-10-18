@@ -45,6 +45,20 @@ public final class EconomyHook {
         return available;
     }
 
+    /**
+     * 重新探测经济可用性（配置重载时调用）。
+     * <p>
+     * 探测结果一旦确定就会被缓存。若 Vault 已存在、但经济插件的 provider 在本插件首次探测之后
+     * 才注册到 ServicesManager（启动顺序不同），此前会永久停留在"不可用"，只能重启服务器。
+     * 重载配置时重新判定一次即可恢复。
+     */
+    public void recheck() {
+        synchronized (this) {
+            resolved = false;
+        }
+        available();
+    }
+
     /** 余额是否足够。Vault 不可用时视为不足。必须在玩家线程调用。 */
     public boolean has(Player player, double amount) {
         if (!available()) {
