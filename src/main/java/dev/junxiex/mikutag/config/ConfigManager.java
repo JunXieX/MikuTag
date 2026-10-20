@@ -34,8 +34,11 @@ import java.util.regex.Pattern;
  */
 public final class ConfigManager {
 
-    /** 预编译：{@link #plain(Component)} 在渲染中高频调用。 */
-    private static final Pattern TAG_PATTERN = Pattern.compile("<[^>]+>");
+    /**
+     * 预编译：{@link #plain(Component)} 在渲染中高频调用。
+     * 负向后行断言排除 MiniMessage 转义后的字面 “&lt;”，否则 “a &lt; b” 后面紧跟颜色标签时会被整段吃掉。
+     */
+    private static final Pattern TAG_PATTERN = Pattern.compile("(?<!\\\\)<[^>]+>");
 
     /** 纯文本渲染复用同一 MiniMessage 实例，避免每次调用重复获取。 */
     private static final MiniMessage PLAIN_MM = MiniMessage.miniMessage();
@@ -315,7 +318,11 @@ public final class ConfigManager {
 
     /** 将 Component 渲染为纯文本（剥离样式），用于占位符与配置解析阶段。 */
     public static String plain(Component component) {
-        return TAG_PATTERN.matcher(PLAIN_MM.serialize(component)).replaceAll("");
+        // MiniMessage 序列化会把字面 < 转义成 \<；剥标签时不能把它当标签起点，剥完再还原转义
+        return TAG_PATTERN.matcher(PLAIN_MM.serialize(component))
+                .replaceAll("")
+                .replace("\\<", "<")
+                .replace("\\\\", "\\");
     }
 
     private String raw(String key, Map<String, String> placeholders) {
