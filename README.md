@@ -50,7 +50,8 @@ MikuTag 是一款基于 Paper Dialog 菜单的称号插件，兼容 Paper 与 Fo
 | `menu.page-size` | 商城 / 仓库 / 管理菜单每页显示的称号数量（1-20） | 8 |
 | `menu.click-throttle-ms` | 同一玩家两次菜单点击的最小间隔（毫秒），用于防连点；0 表示不限制 | 200 |
 | `sync.title-interval-seconds` | 称号定义定时重读间隔（秒），仅 mysql / mariadb 生效 | 10 |
-| `placeholder.empty` | 玩家未佩戴称号时 `%mikutag_title%` 的返回内容 | 空 |
+| `placeholder.empty` | 玩家未佩戴称号时的返回内容（支持 MiniMessage 与 & 颜色码，按占位符形态自动转换） | 空 |
+| `text.legacy-colors` | 是否把 & / § 开头的旧式颜色码当作颜色码解析；关闭后 `&` 全部按字面显示 | true |
 | `display.prefix` / `display.suffix` | 展示称号时拼接的前后缀装饰（MiniMessage 或 & 颜色码），不会写入称号定义 | 空 |
 | `behavior.auto-equip` | 玩家获得新称号且当前未佩戴时自动佩戴 | false |
 
@@ -65,8 +66,13 @@ MikuTag 是一款基于 Paper Dialog 菜单的称号插件，兼容 Paper 与 Fo
 - **MiniMessage**：`<red>`、`<bold>`、`<gradient:#7fd7ff:#b48cff>…</gradient>` 等，适合渐变、十六进制等高级样式；
 - **旧式颜色码**：`&c`、`&l`、`&r`、`&#ff0000` 等，与常见老插件 / 配置文件写法一致。
 
-旧式颜色码按游戏内规则转换：颜色码会同时重置此前的加粗 / 斜体等格式，`&r` 等同于恢复默认样式。
+旧式颜色码按游戏内规则转换：颜色码会同时重置此前的加粗 / 斜体等格式，`&r` 等同于恢复默认样式（白色、无格式）。
+两种写法可以混用，但 **MiniMessage 标签参数内部不参与转换**：例如 `<hover:show_text:&c提示>` 或
+`<click:open_url:https://example.com/?a=1&b=2>` 里的 `&` 会保持原样，避免破坏 URL 与标签解析。
+
 正文里需要显示字面 `&` 时写成 `&&`（例如 `M&&M` 显示为 `M&M`）。
+若已有文案本身包含大量字面 `&`（如 `R&D`），可把 `text.legacy-colors` 设为 `false` 关闭旧式颜色码解析，
+之后所有文案都只按 MiniMessage 解析；该开关修改后需重启服务端才会对已加载的称号生效。
 
 ## 命令
 
@@ -118,7 +124,7 @@ MikuTag 是一款基于 Paper Dialog 菜单的称号插件，兼容 Paper 与 Fo
 | --- | --- |
 | `%mikutag_title%` | 当前佩戴称号（含颜色码与 `display` 前后缀），多数聊天 / TAB 插件可直接使用 |
 | `%mikutag_title_strip%` | 当前佩戴称号的纯文本（去颜色，含前后缀） |
-| `%mikutag_title_raw%` | 当前佩戴称号规范化后的 MiniMessage 串（`&` 颜色码已转换，不含前后缀，交由消费插件自行解析） |
+| `%mikutag_title_raw%` | 当前佩戴称号规范化后的 MiniMessage 串（`&` 颜色码已转换，不含前后缀，交由消费插件自行解析，不含 `<reset>`） |
 | `%mikutag_title_id%` | 当前佩戴称号 ID |
 | `%mikutag_count%` | 当前有效拥有的称号数量 |
 | `%mikutag_has_<称号ID>%` | 是否持有某称号（true / false） |

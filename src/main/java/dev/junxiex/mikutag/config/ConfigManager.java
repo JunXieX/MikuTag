@@ -8,6 +8,7 @@ import dev.junxiex.mikutag.util.Text;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
@@ -60,7 +61,10 @@ public final class ConfigManager {
     private volatile int clickThrottleMillis = 200;
     private volatile int flushIntervalSeconds = 30;
     private volatile int titleSyncIntervalSeconds = 10;
-    private volatile String placeholderEmpty = "";
+    /** 未佩戴称号时的占位符返回值，按三种形态预渲染（配置在重载时一次性解析，避免高频求值时重复解析）。 */
+    private volatile String placeholderEmptyLegacy = "";
+    private volatile String placeholderEmptyStripped = "";
+    private volatile String placeholderEmptyMiniMessage = "";
     private volatile boolean autoEquip = false;
 
     /** 显示装饰快照：前后缀 + 是否有装饰 + 代号，整体原子替换，供渲染与缓存失效同源读取。 */
@@ -78,6 +82,9 @@ public final class ConfigManager {
 
     /** 仅在展示时拼接到称号名两侧，不写入称号定义本身（与称号数据解耦）。 */
     private volatile Display display = DISPLAY_NONE;
+
+    /** 是否已经加载过一次（首次加载时切换开关不需要提示重启）。 */
+    private boolean loadedBefore;
 
     private volatile DatabaseType storageType = DatabaseType.SQLITE;
     private volatile String dbHost = "127.0.0.1";
@@ -99,6 +106,19 @@ public final class ConfigManager {
         YamlConfiguration config = YamlConfiguration.loadConfiguration(
                 new File(plugin.getDataFolder(), "config.yml"));
 
+        // 必须在任何 Text.parse 之前生效：display 前后缀与 messages 都在本方法内预渲染
+        boolean legacyColors = config.getBoolean("text.legacy-colors", true);
+        if (Text.legacyColorsEnabled() != legacyColors) {
+            if (loadedBefore) {
+                // 称号的展示 Component 在快照重建时生成；库内容未变化时 reload 不会重建快照，
+                // 因此切换开关后需要重启才能让已加载的称号按新设置重新渲染。
+                plugin.getLogger().warning("config.yml 的 text.legacy-colors 已变更，"
+                        + "已加载称号的展示内容需重启服务端后才会按新设置重新渲染。");
+            }
+            Text.setLegacyColorsEnabled(legacyColors);
+        }
+        loadedBefore = true;
+
         int size = config.getInt("menu.page-size", 8);
         if (size < PAGE_SIZE_MIN || size > PAGE_SIZE_MAX) {
             plugin.getLogger().warning("config.yml 的 menu.page-size=" + size + " 超出允许范围 "
@@ -109,7 +129,11 @@ public final class ConfigManager {
         clickThrottleMillis = Math.max(0, Math.min(10_000, config.getInt("menu.click-throttle-ms", 200)));
         flushIntervalSeconds = Math.max(5, config.getInt("storage.flush-interval-seconds", 30));
         titleSyncIntervalSeconds = Math.max(2, config.getInt("sync.title-interval-seconds", 10));
-        placeholderEmpty = config.getString("placeholder.empty", "");
+        String placeholderEmptyCfg = config.getString("placeholder.empty", "");
+        Component emptyComponent = Text.parse(placeholderEmptyCfg);
+        placeholderEmptyLegacy = LegacyComponentSerializer.legacySection().serialize(emptyComponent);
+        placeholderEmptyStripped = plain(emptyComponent);
+        placeholderEmptyMiniMessage = Text.toMiniMessage(placeholderEmptyCfg);
         autoEquip = config.getBoolean("behavior.auto-equip", false);
 
         String prefixCfg = config.getString("display.prefix", "");
@@ -360,8 +384,19 @@ public final class ConfigManager {
         return titleSyncIntervalSeconds;
     }
 
-    public String placeholderEmpty() {
-        return placeholderEmpty;
+    /** 未佩戴称号时 {@code %mikutag_title%} 的返回值（旧式 § 颜色码形态）。 */
+    public String placeholderEmptyLegacy() {
+        return placeholderEmptyLegacy;
+    }
+
+    /** 未佩戴称号时 {@code %mikutag_title_strip%} 的返回值（纯文本）。 */
+    public String placeholderEmptyStripped() {
+        return placeholderEmptyStripped;
+    }
+
+    /** 未佩戴称号时 {@code %mikutag_title_raw%} 的返回值（规范化 MiniMessage）。 */
+    public String placeholderEmptyMiniMessage() {
+        return placeholderEmptyMiniMessage;
     }
 
     /** 获得新称号时是否自动佩戴（当前未佩戴才生效）。 */

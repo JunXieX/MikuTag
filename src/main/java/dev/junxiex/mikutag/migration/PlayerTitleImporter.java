@@ -5,7 +5,6 @@ import dev.junxiex.mikutag.model.Requirement;
 import dev.junxiex.mikutag.model.Title;
 import dev.junxiex.mikutag.storage.Storage;
 import dev.junxiex.mikutag.storage.WriteOp;
-import dev.junxiex.mikutag.util.Text;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -42,7 +41,7 @@ import java.util.UUID;
  * 映射规则：
  * <ul>
  *   <li>称号 ID 取 {@code pt_<PlayerTitle自增id>}，重复导入映射到同一 ID，天然幂等；</li>
- *   <li>名称/描述中的 {@code &} 旧颜色码转换为 MiniMessage 标签；</li>
+ *   <li>名称/描述原样导入（&/§ 旧颜色码由 {@link Title} 解析为展示文本，导入阶段不改写）；</li>
  *   <li>获取条件读 {@code title_require}（无行时回退 {@code title_list} 的废弃旧列）：
  *       vault→VAULT、permission→PERMISSION（节点在 buy_data）、not→免费、
  *       activity→免费且不进商城；MikuTag 不支持的类型（coin/playerPoints/itemStack/
@@ -202,8 +201,10 @@ public final class PlayerTitleImporter {
                     titlesSkipped++; // 幂等：已导入过（或 ID 冲突）不覆盖
                     continue;
                 }
-                String name = Text.toMiniMessage(rs.getString("title_name"));
-                String description = Text.toMiniMessage(rs.getString("description"));
+                // 保留原文：旧式 &/§ 颜色码由 Title 统一归一化。若在这里先转一次，
+                // Title 构造时会再转一次（&& 转义产生的字面 & 会被二次解析），且入库内容会膨胀。
+                String name = rs.getString("title_name");
+                String description = rs.getString("description");
                 List<Requirement> reqs = reqsByTitle.getOrDefault(ptId, List.of());
                 boolean activity = Boolean.TRUE.equals(activityByTitle.get(ptId));
                 if (!hasRequireRows.contains(ptId)) {

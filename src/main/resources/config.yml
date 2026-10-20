@@ -40,8 +40,14 @@ sync:
   title-interval-seconds: 10
 
 placeholder:
-  # 玩家未佩戴称号时 %mikutag_title% 的返回内容
+  # 玩家未佩戴称号时的返回内容（支持 MiniMessage 与 & 颜色码）
   empty: ""
+
+text:
+  # 是否把 & / § 开头的旧式颜色码当作颜色码解析（&c、&l、&r、&#ff0000 等）。
+  # MiniMessage 标签始终可用，两种写法可混用；关闭此项后配置里的 & 全部按字面显示
+  # （正文需要字面 & 时也可写成 &&）。修改后请重启服务端，已加载的称号才会按新设置重新渲染。
+  legacy-colors: true
 
 display:
   # 显示装饰：只在展示称号时拼接到名称两侧（菜单、占位符等），不会写入称号定义本身。

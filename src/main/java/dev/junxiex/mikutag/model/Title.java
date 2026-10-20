@@ -101,6 +101,10 @@ public final class Title {
         return id;
     }
 
+    /**
+     * 名称的原始源串（可能是 MiniMessage，也可能含 {@code &}/{@code §} 旧式颜色码）。
+     * 展示与对外渲染请使用 {@link #displayName()}，本方法仅用于存储与管理表单回填。
+     */
     public String name() {
         return name;
     }
@@ -110,6 +114,7 @@ public final class Title {
         return miniMessageName;
     }
 
+    /** 描述的原始源串（每行一条，可能含 {@code &}/{@code §} 旧式颜色码）；展示请用 {@link #descriptionLines()}。 */
     public List<String> description() {
         return description;
     }

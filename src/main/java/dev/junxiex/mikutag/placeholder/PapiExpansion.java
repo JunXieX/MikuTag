@@ -108,16 +108,26 @@ public final class PapiExpansion extends PlaceholderExpansion {
         RAW
     }
 
+    /** 未佩戴称号时的返回值：三种形态各自预渲染，避免把 MiniMessage/& 颜色码原样吐给消费插件。 */
+    private String empty(Form form) {
+        ConfigManager cfg = plugin.configManager();
+        return switch (form) {
+            case LEGACY -> cfg.placeholderEmptyLegacy();
+            case STRIPPED -> cfg.placeholderEmptyStripped();
+            case RAW -> cfg.placeholderEmptyMiniMessage();
+        };
+    }
+
     private String equipped(PlayerTagData data, Form form) {
         String id = equippedId(data);
         if (id.isEmpty()) {
-            return plugin.configManager().placeholderEmpty();
+            return empty(form);
         }
         // 一次取整体快照：title 与其 generation 成对读取，不会跨快照撕裂
         TitleManager.Snapshot snap = plugin.titleManager().current();
         Title title = snap.byId().get(id);
         if (title == null) {
-            return plugin.configManager().placeholderEmpty();
+            return empty(form);
         }
         // 原始模板：不套显示前后缀，返回规范化后的 MiniMessage 源串（旧式 & 颜色码已转换）
         if (form == Form.RAW) {
