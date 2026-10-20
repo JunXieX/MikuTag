@@ -69,7 +69,6 @@ public final class MenuService {
             Title title = titles.get(i);
             buttons.add(ActionButton.builder(cfg.displayedName(title))
                     .tooltip(shopTooltip(title))
-                    .width(150)
                     .action(DialogAction.customClick(CLICK_KEY,
                             ClickPayload.tag(ClickPayload.SHOP_SELECT, title.id(), page)))
                     .build());
@@ -82,7 +81,6 @@ public final class MenuService {
                     .build());
         } else {
             buttons.add(ActionButton.builder(cfg.message("menu.warehouse-title"))
-                    .width(120)
                     .action(DialogAction.customClick(CLICK_KEY,
                             ClickPayload.tag(ClickPayload.WAREHOUSE, "", 0)))
                     .build());
@@ -106,7 +104,7 @@ public final class MenuService {
                         .body(List.of(DialogBody.plainMessage(info)))
                         .canCloseWithEscape(true)
                         .build())
-                .type(DialogType.multiAction(buttons).columns(2).build())));
+                .type(DialogType.multiAction(buttons).columns(1).build())));
     }
 
     /** 打开某个称号的详情/确认购买页。page 为来源商城页码。 */
@@ -151,13 +149,11 @@ public final class MenuService {
         List<ActionButton> buttons = new ArrayList<>();
         if (!owned && title.sellable()) {
             buttons.add(ActionButton.builder(cfg.message("menu.buy-button"))
-                    .width(100)
                     .action(DialogAction.customClick(CLICK_KEY,
                             ClickPayload.tag(ClickPayload.SHOP_BUY, title.id(), page)))
                     .build());
         }
         buttons.add(ActionButton.builder(cfg.message("menu.back-button"))
-                .width(80)
                 .action(DialogAction.customClick(CLICK_KEY,
                         ClickPayload.tag(ClickPayload.BACK, "", page)))
                 .build());
@@ -167,7 +163,7 @@ public final class MenuService {
                         .body(bodies)
                         .canCloseWithEscape(true)
                         .build())
-                .type(DialogType.multiAction(buttons).columns(2).build())));
+                .type(DialogType.multiAction(buttons).columns(1).build())));
     }
 
     /** 打开玩家称号仓库。 */
@@ -200,20 +196,16 @@ public final class MenuService {
         List<ActionButton> buttons = new ArrayList<>();
         if (equipped != null && !equipped.isEmpty()) {
             buttons.add(ActionButton.builder(cfg.message("menu.unequip-button"))
-                    .width(150)
                     .action(DialogAction.customClick(CLICK_KEY,
                             ClickPayload.tag(ClickPayload.WH_UNEQUIP, "", page)))
                     .build());
         }
         for (int i = from; i < to; i++) {
             Title title = owned.get(i);
+            // 按钮始终显示称号名：点击即切换佩戴，佩戴状态只放在 tooltip 里，避免盖掉称号本体影响阅读
             boolean isEquipped = title.id().equals(equipped);
-            Component label = isEquipped
-                    ? cfg.message("menu.equipped-mark")
-                    : cfg.displayedName(title);
-            buttons.add(ActionButton.builder(label)
+            buttons.add(ActionButton.builder(cfg.displayedName(title))
                     .tooltip(warehouseTooltip(title, data, now, isEquipped))
-                    .width(150)
                     .action(DialogAction.customClick(CLICK_KEY,
                             ClickPayload.tag(ClickPayload.WH_EQUIP, title.id(), page)))
                     .build());
@@ -226,7 +218,6 @@ public final class MenuService {
                     .build());
         } else {
             buttons.add(ActionButton.builder(cfg.message("menu.shop-title"))
-                    .width(120)
                     .action(DialogAction.customClick(CLICK_KEY,
                             ClickPayload.tag(ClickPayload.SHOP, "", 0)))
                     .build());
@@ -250,7 +241,7 @@ public final class MenuService {
                         .body(List.of(DialogBody.plainMessage(info)))
                         .canCloseWithEscape(true)
                         .build())
-                .type(DialogType.multiAction(buttons).columns(2).build())));
+                .type(DialogType.multiAction(buttons).columns(1).build())));
     }
 
     /** 通用结果反馈页（notice 类型，单按钮返回）。 */
@@ -263,7 +254,6 @@ public final class MenuService {
         ConfigManager cfg = plugin.configManager();
         String action = backAction == null || backAction.isEmpty() ? ClickPayload.BACK : backAction;
         ActionButton ok = ActionButton.builder(cfg.message("menu.back-button"))
-                .width(100)
                 .action(DialogAction.customClick(CLICK_KEY, ClickPayload.tag(action, "", backPage)))
                 .build();
         Dialogs.show(plugin, player, () -> Dialog.create(b -> b.empty()
@@ -362,7 +352,6 @@ public final class MenuService {
 
     private ActionButton navButton(Component text, String action, int page) {
         return ActionButton.builder(text)
-                .width(80)
                 .action(DialogAction.customClick(CLICK_KEY, ClickPayload.tag(action, "", page)))
                 .build();
     }

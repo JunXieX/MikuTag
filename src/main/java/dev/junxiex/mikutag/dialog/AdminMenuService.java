@@ -51,7 +51,6 @@ public final class AdminMenuService {
 
         List<ActionButton> buttons = new ArrayList<>();
         buttons.add(ActionButton.builder(cfg.message("admin.new-button"))
-                .width(150)
                 .action(DialogAction.customClick(MenuService.CLICK_KEY,
                         ClickPayload.tag(ClickPayload.ADMIN_NEW, "", page)))
                 .build());
@@ -59,7 +58,6 @@ public final class AdminMenuService {
             Title title = titles.get(i);
             buttons.add(ActionButton.builder(title.displayName())
                     .tooltip(adminTooltip(title))
-                    .width(150)
                     .action(DialogAction.customClick(MenuService.CLICK_KEY,
                             ClickPayload.tag(ClickPayload.ADMIN_EDIT, title.id(), page)))
                     .build());
@@ -84,7 +82,7 @@ public final class AdminMenuService {
                         .body(List.of(DialogBody.plainMessage(info)))
                         .canCloseWithEscape(true)
                         .build())
-                .type(DialogType.multiAction(buttons).columns(2).build())));
+                .type(DialogType.multiAction(buttons).columns(1).build())));
     }
 
     /** 新建（titleId 为空）或编辑称号。 */
@@ -129,19 +127,16 @@ public final class AdminMenuService {
 
         List<ActionButton> buttons = new ArrayList<>();
         buttons.add(ActionButton.builder(cfg.message("admin.save-button"))
-                .width(100)
                 .action(DialogAction.customClick(MenuService.CLICK_KEY,
                         ClickPayload.tag(ClickPayload.ADMIN_SAVE, creating ? "" : title.id(), page)))
                 .build());
         if (!creating) {
             buttons.add(ActionButton.builder(cfg.message("admin.delete-button"))
-                    .width(100)
                     .action(DialogAction.customClick(MenuService.CLICK_KEY,
                             ClickPayload.tag(ClickPayload.ADMIN_DEL, title.id(), page)))
                     .build());
         }
         buttons.add(ActionButton.builder(cfg.message("menu.back-button"))
-                .width(100)
                 .action(DialogAction.customClick(MenuService.CLICK_KEY,
                         ClickPayload.tag(ClickPayload.ADMIN, "", page)))
                 .build());
@@ -156,7 +151,7 @@ public final class AdminMenuService {
                         .inputs(inputs)
                         .canCloseWithEscape(true)
                         .build())
-                .type(DialogType.multiAction(buttons).columns(3).build())));
+                .type(DialogType.multiAction(buttons).columns(1).build())));
     }
 
     /** 处理保存：读取表单值并校验。由点击监听器在玩家线程调用。 */
@@ -236,12 +231,10 @@ public final class AdminMenuService {
             return;
         }
         ActionButton yes = ActionButton.builder(cfg.message("admin.delete-button"))
-                .width(100)
                 .action(DialogAction.customClick(MenuService.CLICK_KEY,
                         ClickPayload.tag(ClickPayload.ADMIN_DEL_OK, title.id(), page)))
                 .build();
         ActionButton no = ActionButton.builder(cfg.message("menu.cancel-button"))
-                .width(100)
                 .action(DialogAction.customClick(MenuService.CLICK_KEY,
                         ClickPayload.tag(ClickPayload.ADMIN_EDIT, title.id(), page)))
                 .build();
@@ -294,7 +287,6 @@ public final class AdminMenuService {
 
     private ActionButton navButton(Component text, String action, int page) {
         return ActionButton.builder(text)
-                .width(80)
                 .action(DialogAction.customClick(MenuService.CLICK_KEY, ClickPayload.tag(action, "", page)))
                 .build();
     }
