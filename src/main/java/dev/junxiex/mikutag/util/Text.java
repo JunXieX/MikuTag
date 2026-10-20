@@ -3,6 +3,9 @@ package dev.junxiex.mikutag.util;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 
+import java.util.Locale;
+import java.util.regex.Pattern;
+
 /**
  * 统一的文本解析入口：同时兼容 MiniMessage 与旧式 {@code &}/{@code §} 颜色码。
  * <p>
@@ -36,6 +39,13 @@ public final class Text {
     /** 颜色码与 {@code &r} 需要一并清掉的格式：作用域内显式置 false，不弹出外层标签。 */
     private static final String RESET_DECORATIONS =
             "<!bold><!italic><!underlined><!strikethrough><!obfuscated>";
+
+    /**
+     * 合法标签名：与 MiniMessage 的 {@code TagInternals} 保持一致（小写化后匹配）。
+     * 用来区分“真的是 MiniMessage 标签”与正文里的 {@code "<3"}、{@code "<=10"} 这类普通文本——
+     * 只看到 {@code <} 与后面的 {@code >} 就当作标签，会把后面的颜色码整段漏转。
+     */
+    private static final Pattern TAG_NAME_PATTERN = Pattern.compile("[!?#]?[a-z0-9_-]*");
 
     /** 是否把旧式 {@code &}/{@code §} 颜色码当作颜色码解析（关闭后完全按 MiniMessage 处理）。 */
     private static volatile boolean legacyColorsEnabled = true;
@@ -80,21 +90,17 @@ public final class Text {
         }
         int length = text.length();
         StringBuilder out = new StringBuilder(length + 32);
-        boolean inTag = false;
         for (int i = 0; i < length; i++) {
             char c = text.charAt(i);
-            if (inTag) {
-                out.append(c);
-                if (c == '>') {
-                    inTag = false;
+            // 整段 MiniMessage 标签（含参数、引号内的 >）原样跳过：
+            // <click:/cmd?x=1&b=2> 这类参数必须保持原样，正文里的 "<3"、"<=10" 则不算标签
+            if (c == '<') {
+                int end = tagEnd(text, i);
+                if (end >= 0) {
+                    out.append(text, i, end + 1);
+                    i = end;
+                    continue;
                 }
-                continue;
-            }
-            // 标签内部（含参数）不转换：<click:/cmd?x=1&b=2> 这类参数必须保持原样
-            if (c == '<' && isTagStart(text, i)) {
-                inTag = true;
-                out.append(c);
-                continue;
             }
             if (c != AMPERSAND && c != SECTION) {
                 out.append(c);
@@ -140,16 +146,63 @@ public final class Text {
         return out.toString();
     }
 
-    /** 判断 {@code <} 是否是一段 MiniMessage 标签的起点（排除转义的 {@code \<} 与 “a < b” 这类文本）。 */
-    private static boolean isTagStart(String text, int index) {
-        if (index > 0 && text.charAt(index - 1) == '\\') {
-            return false; // MiniMessage 转义：\< 表示字面 <
+    /**
+     * 找出从 {@code start}（指向 {@code <}）开始的 MiniMessage 标签的结尾 {@code >} 下标；不是标签返回 -1。
+     * <p>
+     * 规则对齐 MiniMessage 的 TokenParser：引号内的 {@code >} 不算结束；遇到嵌套的 {@code <} 视为
+     * 重新开始（外层不是标签）；标签名必须匹配 {@link #TAG_NAME_PATTERN}，否则 {@code <3}、{@code <=10}
+     * 这类正文会被误当成标签、导致后面的颜色码整段漏转。
+     */
+    private static int tagEnd(String text, int start) {
+        int length = text.length();
+        char quote = 0;
+        for (int i = start + 1; i < length; i++) {
+            char c = text.charAt(i);
+            if (quote != 0) {
+                if (c == '\\' && i + 1 < length) {
+                    i++; // 引号内的转义：跳过下一个字符
+                } else if (c == quote) {
+                    quote = 0;
+                }
+                continue;
+            }
+            if (c == '\\' && i + 1 < length && text.charAt(i + 1) == '<') {
+                return -1; // 标签内的转义 < 会让 MiniMessage 退回普通文本，这里不再视为标签
+            }
+            if (c == '\'' || c == '"') {
+                if (text.indexOf(c, i + 1) >= 0) {
+                    quote = c; // 仅当后面还存在同种引号时才进入引号状态（与 MiniMessage 一致）
+                }
+                continue;
+            }
+            if (c == '<') {
+                return -1; // 嵌套 <：按 MiniMessage 规则从新的 < 重新判定
+            }
+            if (c == '>') {
+                return isValidTagName(text, start, i) ? i : -1;
+            }
         }
-        int next = index + 1;
-        if (next >= text.length() || Character.isWhitespace(text.charAt(next))) {
+        return -1;
+    }
+
+    /** 校验标签名是否合法（{@code /} 表示闭合标签，末尾 {@code /} 表示自闭合）。 */
+    private static boolean isValidTagName(String text, int start, int end) {
+        int nameStart = start + 1;
+        if (nameStart < end && text.charAt(nameStart) == '/') {
+            nameStart++;
+        }
+        int nameEnd = nameStart;
+        while (nameEnd < end && text.charAt(nameEnd) != ':') {
+            nameEnd++;
+        }
+        if (nameEnd > nameStart && text.charAt(nameEnd - 1) == '/') {
+            nameEnd--; // 自闭合标签 <name/>
+        }
+        if (nameEnd <= nameStart) {
             return false;
         }
-        return text.indexOf('>', next) >= 0;
+        String name = text.substring(nameStart, nameEnd).toLowerCase(Locale.ROOT);
+        return TAG_NAME_PATTERN.matcher(name).matches();
     }
 
     private static int indexOfLegacy(String text) {

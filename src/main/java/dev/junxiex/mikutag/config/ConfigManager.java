@@ -22,7 +22,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 /**
  * 加载 config.yml 与 messages.yml。
@@ -33,12 +32,6 @@ import java.util.regex.Pattern;
  * 所有文本都经 {@link Text} 解析，因此 MiniMessage 与 {@code &}/{@code §} 旧式颜色码均可使用。
  */
 public final class ConfigManager {
-
-    /**
-     * 预编译：{@link #plain(Component)} 在渲染中高频调用。
-     * 负向后行断言排除 MiniMessage 转义后的字面 “&lt;”，否则 “a &lt; b” 后面紧跟颜色标签时会被整段吃掉。
-     */
-    private static final Pattern TAG_PATTERN = Pattern.compile("(?<!\\\\)<[^>]+>");
 
     /** 纯文本渲染复用同一 MiniMessage 实例，避免每次调用重复获取。 */
     private static final MiniMessage PLAIN_MM = MiniMessage.miniMessage();
@@ -316,13 +309,63 @@ public final class ConfigManager {
         return Component.join(JoinConfiguration.noSeparators(), joined);
     }
 
-    /** 将 Component 渲染为纯文本（剥离样式），用于占位符与配置解析阶段。 */
+    /**
+     * 将 Component 渲染为纯文本（剥离样式），用于占位符与配置解析阶段。
+     * <p>
+     * MiniMessage 序列化会把字面 {@code <} 转义成 {@code \<}、字面反斜杠转义成 {@code \\}。
+     * 这里单趟扫描、按转义奇偶性同时完成“剥标签”与“还原转义”：不能先按正则剥标签再 replace，
+     * 否则 {@code \\<tag>}（字面反斜杠后紧跟标签）无法区分转义与否，标签文本会漏进纯文本。
+     */
     public static String plain(Component component) {
-        // MiniMessage 序列化会把字面 < 转义成 \<；剥标签时不能把它当标签起点，剥完再还原转义
-        return TAG_PATTERN.matcher(PLAIN_MM.serialize(component))
-                .replaceAll("")
-                .replace("\\<", "<")
-                .replace("\\\\", "\\");
+        String text = PLAIN_MM.serialize(component);
+        int length = text.length();
+        StringBuilder out = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            char c = text.charAt(i);
+            if (c == '\\') {
+                if (i + 1 < length) {
+                    out.append(text.charAt(i + 1)); // \< -> <、\\ -> \
+                    i++;
+                } else {
+                    out.append(c);
+                }
+                continue;
+            }
+            if (c == '<') {
+                int end = plainTagEnd(text, i);
+                if (end >= 0) {
+                    i = end; // 未被转义的标签：整段丢弃
+                    continue;
+                }
+            }
+            out.append(c);
+        }
+        return out.toString();
+    }
+
+    /** 序列化文本中标签的结束下标（引号内的 {@code >} 不算结束）；不是标签返回 -1。 */
+    private static int plainTagEnd(String text, int start) {
+        int length = text.length();
+        char quote = 0;
+        for (int i = start + 1; i < length; i++) {
+            char c = text.charAt(i);
+            if (quote != 0) {
+                if (c == '\\' && i + 1 < length) {
+                    i++;
+                } else if (c == quote) {
+                    quote = 0;
+                }
+                continue;
+            }
+            if (c == '\'' || c == '"') {
+                quote = c;
+                continue;
+            }
+            if (c == '>') {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private String raw(String key, Map<String, String> placeholders) {

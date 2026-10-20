@@ -214,7 +214,7 @@ public final class PlayerTitleImporter {
                     activity = "activity".equalsIgnoreCase(rs.getString("buy_type"));
                 }
                 boolean sellable = rs.getInt("is_hide") == 0 && !activity;
-                toSave.add(new Title(mikuId, name.isEmpty() ? mikuId : name,
+                toSave.add(new Title(mikuId, name,
                         Title.splitDescription(description), Material.NAME_TAG,
                         reqs, rs.getInt("day"), sellable, rs.getInt("position"),
                         System.currentTimeMillis()));

@@ -70,9 +70,9 @@ MikuTag 是一款基于 Paper Dialog 菜单的称号插件，兼容 Paper 与 Fo
 两种写法可以混用，但 **MiniMessage 标签参数内部不参与转换**：例如 `<hover:show_text:&c提示>` 或
 `<click:open_url:https://example.com/?a=1&b=2>` 里的 `&` 会保持原样，避免破坏 URL 与标签解析。
 
-正文里需要显示字面 `&` 时写成 `&&`（例如 `M&&M` 显示为 `M&M`）。
-若已有文案本身包含大量字面 `&`（如 `R&D`），可把 `text.legacy-colors` 设为 `false` 关闭旧式颜色码解析，
-之后所有文案都只按 MiniMessage 解析；该开关修改后需重启服务端才会对已加载的称号生效。
+开启旧式颜色码解析时，正文里需要显示字面 `&` 可写成 `&&`（例如 `M&&M` 显示为 `M&M`）。
+若已有文案本身包含大量字面 `&`（如 `R&D`），可把 `text.legacy-colors` 设为 `false` 关闭旧式颜色码解析：
+之后所有文案只按 MiniMessage 解析，`&&` 也不再折叠；该开关修改后需重启服务端才会对已加载的称号生效。
 
 ## 命令
 
@@ -129,7 +129,10 @@ MikuTag 是一款基于 Paper Dialog 菜单的称号插件，兼容 Paper 与 Fo
 | `%mikutag_count%` | 当前有效拥有的称号数量 |
 | `%mikutag_has_<称号ID>%` | 是否持有某称号（true / false） |
 
-> 变量数据取自内存缓存；未佩戴称号时的返回值由 `placeholder.empty` 控制。
+> 变量数据取自内存缓存；未佩戴称号时的返回值由 `placeholder.empty` 控制（支持 MiniMessage 与 `&` 颜色码）。
+>
+> `%mikutag_title_raw%` 输出的是未闭合的样式标签（如 `<red>`），仅供非 strict 模式的 MiniMessage 解析；
+> 消费插件若开启 strict 模式，需要自行为其补齐闭合标签。
 
 ## 数据迁移（PlayerTitle）
 
