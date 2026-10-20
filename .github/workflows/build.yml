@@ -51,11 +51,20 @@ jobs:
             *) echo "prerelease=true"  >> "$GITHUB_OUTPUT" ;;
           esac
 
+      - name: Render release notes from release commit
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          # 更新日志取自发版提交正文（正文即结构化更新日志）
+          git log -1 --format=%b "$GITHUB_SHA" > release_body.md
+          if [ ! -s release_body.md ]; then
+            git log -1 --format=%B "$GITHUB_SHA" > release_body.md
+          fi
+
       - name: Publish Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v3
         with:
           name: ${{ steps.rel.outputs.title }}
+          body_path: release_body.md
           files: build/libs/MikuTag-*.jar
           prerelease: ${{ steps.rel.outputs.prerelease }}
-          generate_release_notes: true
