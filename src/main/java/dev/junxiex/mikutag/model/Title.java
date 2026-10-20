@@ -1,7 +1,7 @@
 package dev.junxiex.mikutag.model;
 
+import dev.junxiex.mikutag.util.Text;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Material;
 
 import java.util.ArrayList;
@@ -16,8 +16,6 @@ import java.util.regex.Pattern;
  * 空列表 = 免费领取；{@code sellable=false} = 不在商城出售（活动/发放限定）。
  */
 public final class Title {
-
-    private static final MiniMessage MM = MiniMessage.miniMessage();
 
     /** 合法的称号 ID：字母/数字/下划线/短横线，1-64 位。 */
     private static final Pattern ID_PATTERN = Pattern.compile("[a-zA-Z0-9_\\-]{1,64}");
@@ -56,6 +54,8 @@ public final class Title {
 
     private final Component displayName;
     private final List<Component> descriptionLines;
+    /** 规范化后的 MiniMessage 源串（旧式颜色码已转换），供占位符等直接取用。 */
+    private final String miniMessageName;
 
     public Title(String id, String name, List<String> description, Material icon,
                  List<Requirement> requirements, int durationDays, boolean sellable,
@@ -86,10 +86,13 @@ public final class Title {
         this.sortOrder = sortOrder;
         this.createdAt = createdAt;
 
-        this.displayName = MM.deserialize(this.name);
+        // 名称与描述既接受 MiniMessage，也接受 &/§ 旧式颜色码；先统一转换为 MiniMessage 再解析，
+        // 菜单、聊天与占位符因此共用同一份渲染结果，不会出现"某处生效、某处显示原始颜色码"。
+        this.miniMessageName = Text.toMiniMessage(this.name);
+        this.displayName = Text.parseMiniMessage(this.miniMessageName);
         List<Component> lines = new ArrayList<>(this.description.size());
         for (String line : this.description) {
-            lines.add(MM.deserialize(line));
+            lines.add(Text.parse(line));
         }
         this.descriptionLines = List.copyOf(lines);
     }
@@ -100,6 +103,11 @@ public final class Title {
 
     public String name() {
         return name;
+    }
+
+    /** 规范化后的 MiniMessage 名称（旧式颜色码已转换，不含显示前后缀）。 */
+    public String miniMessageName() {
+        return miniMessageName;
     }
 
     public List<String> description() {

@@ -5,6 +5,7 @@ import dev.junxiex.mikutag.model.Requirement;
 import dev.junxiex.mikutag.model.Title;
 import dev.junxiex.mikutag.storage.Storage;
 import dev.junxiex.mikutag.storage.WriteOp;
+import dev.junxiex.mikutag.util.Text;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -201,8 +202,8 @@ public final class PlayerTitleImporter {
                     titlesSkipped++; // 幂等：已导入过（或 ID 冲突）不覆盖
                     continue;
                 }
-                String name = convertLegacyColor(rs.getString("title_name"));
-                String description = convertLegacyColor(rs.getString("description"));
+                String name = Text.toMiniMessage(rs.getString("title_name"));
+                String description = Text.toMiniMessage(rs.getString("description"));
                 List<Requirement> reqs = reqsByTitle.getOrDefault(ptId, List.of());
                 boolean activity = Boolean.TRUE.equals(activityByTitle.get(ptId));
                 if (!hasRequireRows.contains(ptId)) {
@@ -412,61 +413,5 @@ public final class PlayerTitleImporter {
         } catch (DateTimeParseException ignored) {
         }
         return 0L;
-    }
-
-    /**
-     * {@code &}/{@code §} 旧颜色码 → MiniMessage 标签。
-     * 未知码原样保留；颜色码互斥覆盖（与 Minecraft 行为一致，直接顺序追加标签即可，
-     * MiniMessage 后出现的样式同样生效）。
-     */
-    private static String convertLegacyColor(String raw) {
-        if (raw == null || raw.isEmpty()) {
-            return "";
-        }
-        if (raw.indexOf('&') < 0 && raw.indexOf('\u00A7') < 0) {
-            return raw;
-        }
-        StringBuilder out = new StringBuilder(raw.length() + 16);
-        for (int i = 0; i < raw.length(); i++) {
-            char c = raw.charAt(i);
-            if ((c == '&' || c == '\u00A7') && i + 1 < raw.length()) {
-                String tag = legacyTag(Character.toLowerCase(raw.charAt(i + 1)));
-                if (tag != null) {
-                    out.append(tag);
-                    i++;
-                    continue;
-                }
-            }
-            out.append(c);
-        }
-        return out.toString();
-    }
-
-    private static String legacyTag(char code) {
-        return switch (code) {
-            case '0' -> "<black>";
-            case '1' -> "<dark_blue>";
-            case '2' -> "<dark_green>";
-            case '3' -> "<dark_aqua>";
-            case '4' -> "<dark_red>";
-            case '5' -> "<dark_purple>";
-            case '6' -> "<gold>";
-            case '7' -> "<gray>";
-            case '8' -> "<dark_gray>";
-            case '9' -> "<blue>";
-            case 'a' -> "<green>";
-            case 'b' -> "<aqua>";
-            case 'c' -> "<red>";
-            case 'd' -> "<light_purple>";
-            case 'e' -> "<yellow>";
-            case 'f' -> "<white>";
-            case 'k' -> "<obfuscated>";
-            case 'l' -> "<bold>";
-            case 'm' -> "<strikethrough>";
-            case 'n' -> "<underlined>";
-            case 'o' -> "<italic>";
-            case 'r' -> "<reset>";
-            default -> null;
-        };
     }
 }

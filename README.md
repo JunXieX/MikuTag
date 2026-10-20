@@ -7,13 +7,13 @@ MikuTag 是一款基于 Paper Dialog 菜单的称号插件，兼容 Paper 与 Fo
 ## 功能特性
 
 - 原生 Dialog 菜单（商城 / 称号详情 / 我的称号 / 管理 / 删除确认），无需任何菜单前置
-- 称号支持图标、MiniMessage 名称与描述、有效期（0 = 永久）、排序
+- 称号支持图标、MiniMessage 或 & 颜色码的名称与描述、有效期（0 = 永久）、排序
 - 获取条件可叠加：免费 / Vault 金币 / 权限节点（须全部满足）
 - 商城出售开关：活动限定称号可正常发放，但不出现在商城
 - 管理菜单图形化新建 / 编辑 / 删除称号，保存即生效并自动注册权限节点
 - 玩家仓库一键佩戴 / 卸下；已过期称号在仓库中可见但不能佩戴
 - 发放 / 收回指令支持指定天数；`behavior.auto-equip` 可在玩家获得新称号时自动佩戴
-- 显示前后缀装饰（MiniMessage 格式），一处配置即可全局调整称号展示样式
+- 显示前后缀装饰（MiniMessage 或 & 颜色码），一处配置即可全局调整称号展示样式
 - 存储支持 SQLite / MySQL / MariaDB，数据异步批量写回，不阻塞游戏线程
 - 多服共享 MySQL / MariaDB 时定时重读称号定义，一处修改全服生效
 - 支持从 PlayerTitle 迁移称号定义与玩家持有记录（幂等，可重复执行）
@@ -51,12 +51,22 @@ MikuTag 是一款基于 Paper Dialog 菜单的称号插件，兼容 Paper 与 Fo
 | `menu.click-throttle-ms` | 同一玩家两次菜单点击的最小间隔（毫秒），用于防连点；0 表示不限制 | 200 |
 | `sync.title-interval-seconds` | 称号定义定时重读间隔（秒），仅 mysql / mariadb 生效 | 10 |
 | `placeholder.empty` | 玩家未佩戴称号时 `%mikutag_title%` 的返回内容 | 空 |
-| `display.prefix` / `display.suffix` | 展示称号时拼接的前后缀装饰（MiniMessage），不会写入称号定义 | 空 |
+| `display.prefix` / `display.suffix` | 展示称号时拼接的前后缀装饰（MiniMessage 或 & 颜色码），不会写入称号定义 | 空 |
 | `behavior.auto-equip` | 玩家获得新称号且当前未佩戴时自动佩戴 | false |
 
 ### messages.yml
 
 全部提示与菜单文案，支持 MiniMessage 与 `<prefix>` 前缀标签，可整体自定义。
+
+### 颜色代码
+
+称号名称 / 描述、`display` 前后缀，以及 `messages.yml` 里的全部文案，都同时支持两种写法，且可以混用：
+
+- **MiniMessage**：`<red>`、`<bold>`、`<gradient:#7fd7ff:#b48cff>…</gradient>` 等，适合渐变、十六进制等高级样式；
+- **旧式颜色码**：`&c`、`&l`、`&r`、`&#ff0000` 等，与常见老插件 / 配置文件写法一致。
+
+旧式颜色码按游戏内规则转换：颜色码会同时重置此前的加粗 / 斜体等格式，`&r` 等同于恢复默认样式。
+正文里需要显示字面 `&` 时写成 `&&`（例如 `M&&M` 显示为 `M&M`）。
 
 ## 命令
 
@@ -83,7 +93,7 @@ MikuTag 是一款基于 Paper Dialog 菜单的称号插件，兼容 Paper 与 Fo
 - 获取条件串用 `|` 分隔多项，购买时须全部满足；`free` 或留空表示免费领取：
   - `VAULT:1000`：需要 1000 金币（依赖 Vault）
   - `PERMISSION:mikutag.vip`：需要对应权限节点
-- 名称与描述支持 MiniMessage 样式标签；`<click>` / `<hover>` 等事件标签会被自动剔除。
+- 名称与描述支持 MiniMessage 标签与 `&` 颜色码；`<click>` / `<hover>` 等事件标签会被自动剔除。
 
 `/mikutag create` 示例（含空格的参数需用引号包裹）：
 
@@ -108,7 +118,7 @@ MikuTag 是一款基于 Paper Dialog 菜单的称号插件，兼容 Paper 与 Fo
 | --- | --- |
 | `%mikutag_title%` | 当前佩戴称号（含颜色码与 `display` 前后缀），多数聊天 / TAB 插件可直接使用 |
 | `%mikutag_title_strip%` | 当前佩戴称号的纯文本（去颜色，含前后缀） |
-| `%mikutag_title_raw%` | 当前佩戴称号的 MiniMessage 原始串（不含前后缀，交由消费插件自行解析） |
+| `%mikutag_title_raw%` | 当前佩戴称号规范化后的 MiniMessage 串（`&` 颜色码已转换，不含前后缀，交由消费插件自行解析） |
 | `%mikutag_title_id%` | 当前佩戴称号 ID |
 | `%mikutag_count%` | 当前有效拥有的称号数量 |
 | `%mikutag_has_<称号ID>%` | 是否持有某称号（true / false） |

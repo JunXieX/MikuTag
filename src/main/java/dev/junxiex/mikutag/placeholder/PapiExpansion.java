@@ -20,8 +20,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * <ul>
  *   <li>{@code %mikutag_title%} — 带 § 颜色码、含配置显示前后缀（多数聊天/Tab 插件直接可用）</li>
  *   <li>{@code %mikutag_title_strip%} — 剥离颜色的纯文本，含显示前后缀</li>
- *   <li>{@code %mikutag_title_raw%} — 原始 MiniMessage 模板，<b>不含</b>显示前后缀，
- *       交由消费插件自行解析样式</li>
+ *   <li>{@code %mikutag_title_raw%} — 规范化后的 MiniMessage 模板（旧式 {@code &} 颜色码已转换），
+ *       <b>不含</b>显示前后缀，交由消费插件自行解析样式</li>
  *   <li>{@code %mikutag_title_id%} — 当前佩戴称号 ID</li>
  *   <li>{@code %mikutag_count%} — 当前有效拥有的称号数量</li>
  *   <li>{@code %mikutag_has_<称号ID>%} — 是否有效持有（true/false）</li>
@@ -119,9 +119,9 @@ public final class PapiExpansion extends PlaceholderExpansion {
         if (title == null) {
             return plugin.configManager().placeholderEmpty();
         }
-        // 原始模板：不套显示前后缀，保留 MiniMessage 源串（字段直读，无需缓存）
+        // 原始模板：不套显示前后缀，返回规范化后的 MiniMessage 源串（旧式 & 颜色码已转换）
         if (form == Form.RAW) {
-            return title.name();
+            return title.miniMessageName();
         }
         // 显示装饰与代号成对取自同一快照，渲染与缓存标记不会跨 loadAll 撕裂
         ConfigManager.Display disp = plugin.configManager().currentDisplay();

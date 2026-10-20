@@ -4,6 +4,7 @@ import dev.junxiex.mikutag.MikuTagPlugin;
 import dev.junxiex.mikutag.model.Requirement;
 import dev.junxiex.mikutag.model.Title;
 import dev.junxiex.mikutag.storage.DatabaseType;
+import dev.junxiex.mikutag.util.Text;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
@@ -27,6 +28,8 @@ import java.util.regex.Pattern;
  * <p>
  * 消息以不可变快照整体替换（volatile），读取线程始终看到一致状态；
  * 不含占位符的模板在重载时预渲染为 Component，菜单渲染直接复用，避免重复解析 MiniMessage。
+ * <p>
+ * 所有文本都经 {@link Text} 解析，因此 MiniMessage 与 {@code &}/{@code §} 旧式颜色码均可使用。
  */
 public final class ConfigManager {
 
@@ -40,7 +43,6 @@ public final class ConfigManager {
     private static final int PAGE_SIZE_MAX = 20;
 
     private final MikuTagPlugin plugin;
-    private final MiniMessage mm = MiniMessage.miniMessage();
 
     /**
      * 消息快照：原始模板与预渲染常量打包为一个不可变对象整体替换。
@@ -112,8 +114,8 @@ public final class ConfigManager {
 
         String prefixCfg = config.getString("display.prefix", "");
         String suffixCfg = config.getString("display.suffix", "");
-        display = new Display(prefixCfg.isEmpty() ? Component.empty() : mm.deserialize(prefixCfg),
-                suffixCfg.isEmpty() ? Component.empty() : mm.deserialize(suffixCfg),
+        display = new Display(prefixCfg.isEmpty() ? Component.empty() : Text.parse(prefixCfg),
+                suffixCfg.isEmpty() ? Component.empty() : Text.parse(suffixCfg),
                 !prefixCfg.isEmpty() || !suffixCfg.isEmpty(),
                 display.generation() + 1);
 
@@ -166,7 +168,7 @@ public final class ConfigManager {
         Map<String, Component> constants = new HashMap<>();
         for (Map.Entry<String, String> e : newMessages.entrySet()) {
             if (e.getValue().indexOf('{') < 0) {
-                constants.put(e.getKey(), mm.deserialize(applyPrefix(e.getValue(), snapshot)));
+                constants.put(e.getKey(), Text.parse(applyPrefix(e.getValue(), snapshot)));
             }
         }
         // 模板与预渲染常量一次性整体替换，避免重载瞬间读到跨版本的组合
@@ -179,7 +181,7 @@ public final class ConfigManager {
         if (constant != null) {
             return constant;
         }
-        return mm.deserialize(raw(key, placeholders));
+        return Text.parse(raw(key, placeholders));
     }
 
     public Component message(String key) {
@@ -202,8 +204,8 @@ public final class ConfigManager {
         if (idx < 0) {
             return message(key, placeholders);
         }
-        Component head = mm.deserialize(raw.substring(0, idx));
-        Component tail = mm.deserialize(raw.substring(idx + token.length()));
+        Component head = Text.parse(raw.substring(0, idx));
+        Component tail = Text.parse(raw.substring(idx + token.length()));
         return Component.join(JoinConfiguration.noSeparators(), head, component, tail);
     }
 

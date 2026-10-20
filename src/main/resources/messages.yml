@@ -1,4 +1,5 @@
-# MikuTag 消息文件（MiniMessage 格式）
+# MikuTag 消息文件
+# 文案支持 MiniMessage 标签，也支持 & 旧式颜色码（&c、&l、&#RRGGBB 均可，两种写法可混用）；
 # 支持 <prefix> 前缀标签，会在解析前展开为下方 prefix 的值。
 
 prefix: "<gradient:#7fd7ff:#b48cff>[MikuTag]</gradient> "
@@ -96,12 +97,12 @@ admin:
   tooltip-id: "<gray>ID：{id}"
   input:
     id: "<gray>称号 ID"
-    name: "<gray>称号名称（支持 MiniMessage）"
+    name: "<gray>称号名称（支持 MiniMessage 与 & 颜色码）"
     icon: "<gray>图标材质（如 NAME_TAG）"
     requirements: "<gray>获取条件（每行一条：VAULT:金额 或 PERMISSION:节点；留空=免费）"
     days: "<gray>有效天数（0 = 永久）"
     sellable: "<gray>是否在商城出售"
-    description: "<gray>描述（多行用 | 分隔，支持 MiniMessage）"
+    description: "<gray>描述（多行用 | 分隔，支持 MiniMessage 与 & 颜色码）"
   hint:
     description: "<gray>多行请用 | 分隔。"
     requirements: "<gray>可叠加多个条件（须全部满足）。例：VAULT:1000 与 PERMISSION:mikutag.vip 各占一行。"
