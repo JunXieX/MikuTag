@@ -15,7 +15,8 @@ storage:
     database: mikutag
     user: root
     password: ""
-    # 附加连接参数（不要带前导 ?）
+    # 附加连接参数（不要带前导 ?）。插件会补 connectTimeout=5000 与 socketTimeout=15000，
+    # 若这里自带同名参数则以你填的为准。
     parameters: "useSSL=false&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true"
 
   mariadb:
@@ -24,6 +25,7 @@ storage:
     database: mikutag
     user: root
     password: ""
+    # 同样会补连接/读取超时，见 mysql.parameters 上方说明
     parameters: "useSsl=false&characterEncoding=utf8"
 
 menu:

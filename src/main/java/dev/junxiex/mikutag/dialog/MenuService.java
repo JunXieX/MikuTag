@@ -46,17 +46,11 @@ public final class MenuService {
     }
 
     private void doOpenShop(Player player, int page) {
-        ConfigManager cfg = plugin.configManager();
-        PlayerTagData data = plugin.tagService().data(player);
-        if (data == null || !data.loaded()) {
-            // 首次加载失败时缓存中没有数据，玩家不重连就永远打不开菜单；此处主动补拉一次
-            if (plugin.tagService().requestReload(player)) {
-                player.sendMessage(cfg.message("menu.loading"));
-            } else {
-                player.sendMessage(cfg.message("menu.load-failed"));
-            }
+        PlayerTagData data = ensureLoaded(player);
+        if (data == null) {
             return;
         }
+        ConfigManager cfg = plugin.configManager();
         List<Title> titles = shopTitles(data);
         int pageSize = cfg.pageSize();
         int totalPages = Math.max(1, (titles.size() + pageSize - 1) / pageSize);
@@ -113,16 +107,11 @@ public final class MenuService {
     }
 
     private void doOpenDetail(Player player, String titleId, int page) {
-        ConfigManager cfg = plugin.configManager();
-        PlayerTagData data = plugin.tagService().data(player);
-        if (data == null || !data.loaded()) {
-            if (plugin.tagService().requestReload(player)) {
-                player.sendMessage(cfg.message("menu.loading"));
-            } else {
-                player.sendMessage(cfg.message("menu.load-failed"));
-            }
+        PlayerTagData data = ensureLoaded(player);
+        if (data == null) {
             return;
         }
+        ConfigManager cfg = plugin.configManager();
         Title title = plugin.titleManager().get(titleId);
         if (title == null) {
             doOpenShop(player, page);
@@ -172,16 +161,11 @@ public final class MenuService {
     }
 
     private void doOpenWarehouse(Player player, int page) {
-        ConfigManager cfg = plugin.configManager();
-        PlayerTagData data = plugin.tagService().data(player);
-        if (data == null || !data.loaded()) {
-            if (plugin.tagService().requestReload(player)) {
-                player.sendMessage(cfg.message("menu.loading"));
-            } else {
-                player.sendMessage(cfg.message("menu.load-failed"));
-            }
+        PlayerTagData data = ensureLoaded(player);
+        if (data == null) {
             return;
         }
+        ConfigManager cfg = plugin.configManager();
         // 佩戴的称号若已过期则就地卸下（本方法已在玩家线程），避免仓库长期残留过期佩戴记录
         plugin.tagService().clearExpiredEquipped(player);
         List<Title> owned = ownedTitles(data);
@@ -194,7 +178,7 @@ public final class MenuService {
         String equipped = data.equipped();
 
         List<ActionButton> buttons = new ArrayList<>();
-        if (equipped != null && !equipped.isEmpty()) {
+        if (!equipped.isEmpty()) {
             buttons.add(ActionButton.builder(cfg.message("menu.unequip-button"))
                     .action(DialogAction.customClick(CLICK_KEY,
                             ClickPayload.tag(ClickPayload.WH_UNEQUIP, "", page)))
@@ -262,6 +246,20 @@ public final class MenuService {
                         .canCloseWithEscape(true)
                         .build())
                 .type(DialogType.notice(ok))));
+    }
+
+    /**
+     * 取已加载的玩家数据；未加载时发起一次补拉并提示，返回 null 表示本次无法打开菜单。
+     * 数据只会在加载完成后进入缓存，因此不需要再判断 {@code loaded()}。
+     */
+    private PlayerTagData ensureLoaded(Player player) {
+        PlayerTagData data = plugin.tagService().data(player);
+        if (data != null) {
+            return data;
+        }
+        plugin.tagService().requestReload(player);
+        player.sendMessage(plugin.configManager().message("menu.loading"));
+        return null;
     }
 
     // ---- 文案 ----

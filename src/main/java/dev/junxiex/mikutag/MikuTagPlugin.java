@@ -116,6 +116,9 @@ public final class MikuTagPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (placeholderHook != null) {
+            placeholderHook.unregister();
+        }
         MikuTagAPI.shutdown();
         // 存储初始化成功后、tagStore 建立前的任何失败都会走到这里：
         // 此时 tagStore 为 null，但数据库连接已打开，必须关闭，否则句柄泄漏。
@@ -142,31 +145,24 @@ public final class MikuTagPlugin extends JavaPlugin {
         tagStore.close();
     }
 
-    /** 重新加载 config.yml 与 messages.yml，并重新读取数据库中的称号定义。 */
-    public void reloadConfigs() {
-        reloadConfigs(null);
-    }
-
     /**
      * 重新加载配置并在称号重读完成后执行回调（任意线程）。
      * <p>
-     * 称号重读是异步的，需要等待真实结果（例如回报"共加载 N 个称号"）的调用方应使用本方法，
-     * 否则只能拿到重读前的旧数量。
+     * 配置读取是文件 IO，称号重读是数据库 IO，全部放到异步线程，避免 /mikutag reload
+     * 在 Folia 区域线程上阻塞；需要真实结果的调用方通过回调获取。
      */
     public void reloadConfigs(Runnable afterReload) {
-        configManager.loadAll();
-        // Vault 可能是在本插件启用后才装上的：重载时重新探测一次，无需重启服务器
-        if (economyHook != null) {
-            economyHook.recheck();
-        }
-        if (configManager.storageType() != activeStorageType) {
-            getLogger().warning("config.yml 的 storage.type 已改为 "
-                    + configManager.storageType().id() + "，但驱动在启动时已按 "
-                    + activeStorageType.id() + " 加载，切换数据库需重启服务器后才会生效。");
-        }
-        // 称号定义存于数据库，异步重读以支持手工改库或多服共享（定义数据量极小）。
-        // 手动热重载不阻塞区域线程。
         getServer().getAsyncScheduler().runNow(this, task -> {
+            configManager.loadAll();
+            // Vault 可能是在本插件启用后才装上的：重载时重新探测一次，无需重启服务器
+            if (economyHook != null) {
+                economyHook.recheck();
+            }
+            if (configManager.storageType() != activeStorageType) {
+                getLogger().warning("config.yml 的 storage.type 已改为 "
+                        + configManager.storageType().id() + "，但驱动在启动时已按 "
+                        + activeStorageType.id() + " 加载，切换数据库需重启服务器后才会生效。");
+            }
             try {
                 titleManager.reloadFromStorage();
             } catch (RuntimeException ex) {
@@ -220,7 +216,8 @@ public final class MikuTagPlugin extends JavaPlugin {
 
     /** 启动/调整称号定时重读任务；SQLite 不启用（本地单文件库，只有本服读写）。 */
     private synchronized void scheduleTitleSync() {
-        if (!configManager.storageType().isRemote()) {
+        // 以启动时真正建立连接的类型为准：热改 config 的 storage.type 需重启才生效
+        if (!activeStorageType.isRemote()) {
             if (titleSyncTask != null) {
                 titleSyncTask.cancel();
                 titleSyncTask = null;

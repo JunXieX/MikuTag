@@ -30,6 +30,9 @@ import java.util.Map;
  */
 public final class AdminMenuService {
 
+    /** 描述列是 TEXT（约 64KB）；回填上限取一个足够大的值，避免只改其它字段就截断长描述。 */
+    private static final int DESCRIPTION_MAX_LENGTH = 8192;
+
     private final MikuTagPlugin plugin;
 
     public AdminMenuService(MikuTagPlugin plugin) {
@@ -119,7 +122,7 @@ public final class AdminMenuService {
                 .onFalse("false")
                 .build());
         inputs.add(text("description", "admin.input.description",
-                creating ? "" : joinDescription(title.description()), 2048));
+                creating ? "" : joinDescription(title.description()), DESCRIPTION_MAX_LENGTH));
 
         List<DialogBody> bodies = new ArrayList<>();
         bodies.add(DialogBody.plainMessage(cfg.message("admin.hint.requirements")));
@@ -201,12 +204,13 @@ public final class AdminMenuService {
         if (days < 0) {
             days = 0;
         }
+        Title existing = plugin.titleManager().get(id);
+        // 响应缺字段时保持原状态：新建默认在售，编辑沿用当前值
         Boolean sellable = view.getBoolean("sellable");
-        boolean sell = sellable == null || sellable;
+        boolean sell = sellable != null ? sellable : existing != null && existing.sellable();
 
         List<String> description = parseDescription(view.getText("description"));
 
-        Title existing = plugin.titleManager().get(id);
         long createdAt = existing != null ? existing.createdAt() : System.currentTimeMillis();
         int sortOrder = existing != null ? existing.sortOrder() : 0;
 

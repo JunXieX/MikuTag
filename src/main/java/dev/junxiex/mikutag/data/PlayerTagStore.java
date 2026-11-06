@@ -107,7 +107,10 @@ public final class PlayerTagStore {
         return cache.size();
     }
 
+    /** 与在途写回互斥地关闭存储，避免关服时把正在执行的批次切断。 */
     public void close() {
-        storage.close();
+        synchronized (ioLock) {
+            storage.close();
+        }
     }
 }

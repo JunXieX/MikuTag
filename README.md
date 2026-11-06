@@ -91,7 +91,7 @@ MikuTag 是一款基于 Paper Dialog 菜单的称号插件，兼容 Paper 与 Fo
 | `/mikutag reload` | 重载配置并重读称号定义 | `mikutag.admin` |
 | `/mikutag info` | 查看运行状态（版本 / 存储 / 称号数 / Vault / 占位符） | `mikutag.admin` |
 
-别名：`/mt`、`/mtag`、`/title`、`/titles`
+别名：`/mt`、`/mtag`、`/titles`
 
 ### 称号 ID 与获取条件
 

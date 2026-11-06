@@ -5,6 +5,7 @@ import io.papermc.paper.dialog.Dialog;
 import org.bukkit.entity.Player;
 
 import java.util.function.Supplier;
+import java.util.logging.Level;
 
 /**
  * Dialog 显示工具。
@@ -22,7 +23,8 @@ public final class Dialogs {
         try {
             player.showDialog(supplier.get());
         } catch (RuntimeException ex) {
-            plugin.getLogger().severe("为玩家 " + player.getName() + " 构建/显示 Dialog 失败: " + ex);
+            plugin.getLogger().log(Level.SEVERE,
+                    "为玩家 " + player.getName() + " 构建/显示 Dialog 失败", ex);
             player.sendMessage(plugin.configManager().message("menu.failed"));
         }
     }

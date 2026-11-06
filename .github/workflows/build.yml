@@ -24,6 +24,16 @@ jobs:
           java-version: '25'
           cache: gradle
 
+      - name: Verify tag matches project version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VER=$(grep -oP '^version\s*=\s*"\K[^"]+' build.gradle.kts)
+          if [ "$TAG" != "$VER" ]; then
+            echo "tag v$TAG 与 build.gradle.kts 的 version $VER 不一致" >&2
+            exit 1
+          fi
+
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
@@ -57,7 +67,8 @@ jobs:
           # 更新日志取自发版提交正文（正文即结构化更新日志）
           git log -1 --format=%b "$GITHUB_SHA" > release_body.md
           if [ ! -s release_body.md ]; then
-            git log -1 --format=%B "$GITHUB_SHA" > release_body.md
+            echo "发版提交正文为空：请按规范填写结构化更新日志" >&2
+            exit 1
           fi
 
       - name: Publish Release

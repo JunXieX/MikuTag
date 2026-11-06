@@ -27,11 +27,11 @@ public final class Permissions {
         return player.hasPermission(ADMIN);
     }
 
-    /** 是否满足某称号的权限获取条件。 */
+    /** 是否满足某称号的权限获取条件；空节点视为不可满足（损坏数据不能变成免费条件）。 */
     public static boolean hasTitlePermission(Player player, String node) {
-        return node == null || node.isEmpty()
-                || player.hasPermission(node)
+        return node != null && !node.isEmpty()
+                && (player.hasPermission(node)
                 || player.hasPermission(TITLE_WILDCARD)
-                || player.hasPermission(ADMIN);
+                || player.hasPermission(ADMIN));
     }
 }

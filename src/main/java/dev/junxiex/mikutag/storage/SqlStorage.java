@@ -14,8 +14,10 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -46,6 +48,9 @@ public final class SqlStorage implements Storage {
     /** 非 final：远端连接掉线后会在持锁状态下整体替换，所有访问都发生在 dbLock 内。 */
     private Connection connection;
     private volatile boolean closed;
+
+    /** 已提示过的“无法解析”称号行，避免远程库每轮重读都重复刷同一条日志。由 dbLock 保护。 */
+    private final Set<String> warnedBadRows = new HashSet<>();
 
     private final String titleUpsertSql;
     private final String reqDeleteSql;
@@ -111,10 +116,40 @@ public final class SqlStorage implements Storage {
         String scheme = type == DatabaseType.MYSQL ? "jdbc:mysql://" : "jdbc:mariadb://";
         StringBuilder sb = new StringBuilder(scheme)
                 .append(host).append(':').append(port).append('/').append(database);
-        if (parameters != null && !parameters.isBlank()) {
-            sb.append('?').append(parameters.trim());
+        // 驱动默认 0 = 无限等待：远端库网络黑洞时阻塞会发生在 dbLock 内，并拖住关服。
+        // 只在用户没有自己指定时补默认值，保留覆盖能力。
+        String configured = parameters == null ? "" : parameters.trim();
+        StringBuilder query = new StringBuilder(configured);
+        appendDefaultParam(query, configured, "connectTimeout", "5000");
+        appendDefaultParam(query, configured, "socketTimeout", "15000");
+        if (!query.isEmpty()) {
+            sb.append('?').append(query);
         }
         return sb.toString();
+    }
+
+    private static void appendDefaultParam(StringBuilder query, String configured, String key, String value) {
+        if (hasParam(configured, key)) {
+            return;
+        }
+        if (!query.isEmpty()) {
+            query.append('&');
+        }
+        query.append(key).append('=').append(value);
+    }
+
+    private static boolean hasParam(String parameters, String key) {
+        if (parameters.isEmpty()) {
+            return false;
+        }
+        for (String part : parameters.split("&")) {
+            int equal = part.indexOf('=');
+            String name = equal < 0 ? part : part.substring(0, equal);
+            if (name.trim().equalsIgnoreCase(key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Connection openConnection() throws SQLException {
@@ -287,16 +322,23 @@ public final class SqlStorage implements Storage {
                         }
                         String iconName = rs.getString("icon");
                         Material icon = Material.matchMaterial(iconName == null ? "" : iconName);
-                        titles.add(new Title(
-                                id,
-                                rs.getString("name"),
-                                Title.splitDescription(rs.getString("description")),
-                                icon,
-                                reqsByTitle.getOrDefault(id, List.of()),
-                                rs.getInt("duration_days"),
-                                rs.getInt("sellable") != 0,
-                                rs.getInt("sort_order"),
-                                rs.getLong("created_at")));
+                        try {
+                            titles.add(new Title(
+                                    id,
+                                    rs.getString("name"),
+                                    Title.splitDescription(rs.getString("description")),
+                                    icon,
+                                    reqsByTitle.getOrDefault(id, List.of()),
+                                    rs.getInt("duration_days"),
+                                    rs.getInt("sellable") != 0,
+                                    rs.getInt("sort_order"),
+                                    rs.getLong("created_at")));
+                        } catch (RuntimeException ex) {
+                            // 单行坏文本（例如手工改库写入非法 MiniMessage）不能拖垮整张称号表
+                            if (warnedBadRows.add(id)) {
+                                logger.warning("称号 " + id + " 的文本无法解析，已跳过该行: " + ex.getMessage());
+                            }
+                        }
                     }
                 }
             } catch (SQLException e) {

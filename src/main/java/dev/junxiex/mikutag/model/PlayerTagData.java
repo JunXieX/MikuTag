@@ -1,5 +1,6 @@
 package dev.junxiex.mikutag.model;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -14,6 +15,7 @@ public final class PlayerTagData {
 
     private final UUID uuid;
     private final Map<String, Long> owned = new ConcurrentHashMap<>();
+    private final Map<String, Long> ownedView = Collections.unmodifiableMap(owned);
     private volatile String equipped = "";
     private volatile boolean loaded;
 
@@ -35,7 +37,7 @@ public final class PlayerTagData {
 
     /** 只读视图（非拷贝，反映最新状态），供遍历与计数使用。 */
     public Map<String, Long> owned() {
-        return java.util.Collections.unmodifiableMap(owned);
+        return ownedView;
     }
 
     /** 当前是否有效拥有某称号（永久或未过期）。 */

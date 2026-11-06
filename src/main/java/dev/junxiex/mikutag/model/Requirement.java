@@ -11,6 +11,15 @@ import java.util.Locale;
  */
 public record Requirement(ReqType type, double amount, String permission) {
 
+    /**
+     * 约束集中在这里：库/手工改库/多服写入都会经过本构造器，避免只有工厂方法校验、
+     * 读取路径绕过导致负数金额或空权限节点静默变成“免费”。
+     */
+    public Requirement {
+        amount = Double.isFinite(amount) ? Math.max(0, amount) : 0;
+        permission = permission == null ? "" : permission;
+    }
+
     /** 条件类型。FREE 由空列表表达、活动限定由 sellable=false 表达，均不占用本枚举。 */
     public enum ReqType {
         VAULT,
@@ -28,14 +37,11 @@ public record Requirement(ReqType type, double amount, String permission) {
     }
 
     public static Requirement vault(double amount) {
-        // NaN/Infinity 会污染后续的 >0 比较（NaN 与任何值比较均为 false），
-        // 使金币条件被误判为"无需扣款"，故非有限值一律按 0 处理；负数额按 0 处理。
-        double safe = Double.isFinite(amount) ? Math.max(0, amount) : 0;
-        return new Requirement(ReqType.VAULT, safe, "");
+        return new Requirement(ReqType.VAULT, amount, "");
     }
 
     public static Requirement permission(String node) {
-        return new Requirement(ReqType.PERMISSION, 0, node == null ? "" : node);
+        return new Requirement(ReqType.PERMISSION, 0, node);
     }
 
     /**

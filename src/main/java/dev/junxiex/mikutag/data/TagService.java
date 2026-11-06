@@ -331,7 +331,8 @@ public final class TagService {
             countCache.remove(uuid);
             return 0;
         }
-        long generation = plugin.titleManager().current().generation();
+        TitleManager.Snapshot snapshot = plugin.titleManager().current();
+        long generation = snapshot.generation();
         long now = System.currentTimeMillis();
         CountCache cached = countCache.get(uuid);
         if (cached != null && cached.titleGeneration() == generation
@@ -340,7 +341,7 @@ public final class TagService {
         }
         int count = 0;
         for (String id : data.owned().keySet()) {
-            if (plugin.titleManager().get(id) != null && data.owns(id, now)) {
+            if (snapshot.byId().containsKey(id) && data.owns(id, now)) {
                 count++;
             }
         }

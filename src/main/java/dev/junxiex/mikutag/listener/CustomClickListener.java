@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class CustomClickListener implements Listener {
 
     private final MikuTagPlugin plugin;
-    /** 玩家 UUID → 上次处理点击的时间戳（毫秒）。 */
+    /** 玩家 UUID → 上次处理点击的 {@link System#nanoTime()}；用单调时钟，避免墙钟回拨后菜单点不动。 */
     private final Map<UUID, Long> lastClickAt = new ConcurrentHashMap<>();
 
     public CustomClickListener(MikuTagPlugin plugin) {
@@ -60,7 +60,7 @@ public final class CustomClickListener implements Listener {
         TagService service = plugin.tagService();
 
         switch (click.action()) {
-            case ClickPayload.SHOP -> menu.openShop(player, 0);
+            case ClickPayload.SHOP -> menu.openShop(player, click.page());
             case ClickPayload.SHOP_PREV, ClickPayload.SHOP_NEXT, ClickPayload.BACK ->
                     menu.openShop(player, click.page());
             case ClickPayload.SHOP_SELECT -> menu.openDetail(player, click.id(), click.page());
@@ -163,9 +163,10 @@ public final class CustomClickListener implements Listener {
             return false;
         }
         UUID uuid = player.getUniqueId();
-        long now = System.currentTimeMillis();
+        long now = System.nanoTime();
+        long throttleNanos = throttle * 1_000_000L;
         Long previous = lastClickAt.get(uuid);
-        if (previous != null && now - previous < throttle) {
+        if (previous != null && now - previous < throttleNanos) {
             return true;
         }
         lastClickAt.put(uuid, now);

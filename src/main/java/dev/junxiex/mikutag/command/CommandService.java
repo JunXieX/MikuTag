@@ -116,7 +116,7 @@ public final class CommandService {
                             .requires(this::isAdmin)
                             .executes(this::info))
                     .build(),
-                    "MikuTag 称号插件指令", List.of("mt", "mtag", "title", "titles"));
+                    "MikuTag 称号插件指令", List.of("mt", "mtag", "titles"));
         });
     }
 
@@ -264,6 +264,11 @@ public final class CommandService {
         }
         // revoke 改玩家缓存，必须在目标玩家属主线程执行；结果按真实成败回发。
         target.getScheduler().run(plugin, task -> {
+            if (plugin.tagStore().get(target.getUniqueId()) == null) {
+                reply(sender, plugin.configManager().message("command.data-loading",
+                        Map.of("player", target.getName())));
+                return;
+            }
             boolean ok = plugin.tagService().revoke(target, title.id());
             reply(sender, plugin.configManager().message(ok ? "command.take-ok" : "command.take-not-owned",
                     Map.of("player", target.getName(),
