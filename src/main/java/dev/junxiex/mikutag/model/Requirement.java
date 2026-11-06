@@ -12,8 +12,9 @@ import java.util.Locale;
 public record Requirement(ReqType type, double amount, String permission) {
 
     /**
-     * 约束集中在这里：库/手工改库/多服写入都会经过本构造器，避免只有工厂方法校验、
-     * 读取路径绕过导致负数金额或空权限节点静默变成“免费”。
+     * 约束集中在这里：库/手工改库/多服写入都会经过本构造器，避免只有工厂方法校验、读取路径绕过。
+     * 非有限/负数金额收敛为 0（等价免费，正常写入侧 parseList 仍会拒绝负数）；空权限节点由
+     * {@code Permissions.hasTitlePermission} 判定为不可满足。
      */
     public Requirement {
         amount = Double.isFinite(amount) ? Math.max(0, amount) : 0;

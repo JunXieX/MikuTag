@@ -39,7 +39,10 @@ public final class ClickPayload {
 
     public static final String BACK = "back";
 
-    /** 顶层 d 字段；允许键名带引号、冒号与值前后有空白。 */
+    /**
+     * 顶层 d 字段；允许键名带引号、冒号与值前后有空白。
+     * 约束：对话框的 {@code DialogInput.key()} 不得命名为 {@code d}，否则会与本负载键冲突。
+     */
     private static final Pattern PAYLOAD_FIELD =
             Pattern.compile("[{,]\\s*\"?d\"?\\s*:\\s*\"([^\"]*)\"");
 

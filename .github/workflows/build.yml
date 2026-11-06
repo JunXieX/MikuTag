@@ -66,7 +66,7 @@ jobs:
         run: |
           # 更新日志取自发版提交正文（正文即结构化更新日志）
           git log -1 --format=%b "$GITHUB_SHA" > release_body.md
-          if [ ! -s release_body.md ]; then
+          if ! grep -q '[^[:space:]]' release_body.md; then
             echo "发版提交正文为空：请按规范填写结构化更新日志" >&2
             exit 1
           fi

@@ -31,6 +31,7 @@ import java.io.File;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
 
 /**
  * MikuTag 主类 —— 基于 Dialog 菜单的称号插件。
@@ -65,7 +66,13 @@ public final class MikuTagPlugin extends JavaPlugin {
                 + ServerBuildInfo.buildInfo().minecraftVersionName());
 
         configManager = new ConfigManager(this);
-        configManager.loadAll();
+        try {
+            configManager.loadAll();
+        } catch (RuntimeException ex) {
+            getLogger().log(Level.SEVERE, "读取 config.yml / messages.yml 失败，插件禁用", ex);
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
         registerBasePermissions();
 
         DatabaseType type = configManager.storageType();
@@ -153,24 +160,29 @@ public final class MikuTagPlugin extends JavaPlugin {
      */
     public void reloadConfigs(Runnable afterReload) {
         getServer().getAsyncScheduler().runNow(this, task -> {
-            configManager.loadAll();
-            // Vault 可能是在本插件启用后才装上的：重载时重新探测一次，无需重启服务器
-            if (economyHook != null) {
-                economyHook.recheck();
-            }
-            if (configManager.storageType() != activeStorageType) {
-                getLogger().warning("config.yml 的 storage.type 已改为 "
-                        + configManager.storageType().id() + "，但驱动在启动时已按 "
-                        + activeStorageType.id() + " 加载，切换数据库需重启服务器后才会生效。");
-            }
             try {
-                titleManager.reloadFromStorage();
+                configManager.loadAll();
+                // Vault 可能是在本插件启用后才装上的：重载时重新探测一次，无需重启服务器
+                if (economyHook != null) {
+                    economyHook.recheck();
+                }
+                if (configManager.storageType() != activeStorageType) {
+                    getLogger().warning("config.yml 的 storage.type 已改为 "
+                            + configManager.storageType().id() + "，但驱动在启动时已按 "
+                            + activeStorageType.id() + " 加载，切换数据库需重启服务器后才会生效。");
+                }
+                try {
+                    titleManager.reloadFromStorage();
+                } catch (RuntimeException ex) {
+                    getLogger().warning("重读称号列表失败: " + ex.getMessage());
+                }
+                applyGlobalState();
+                if (afterReload != null) {
+                    afterReload.run();
+                }
             } catch (RuntimeException ex) {
-                getLogger().warning("重读称号列表失败: " + ex.getMessage());
-            }
-            applyGlobalState();
-            if (afterReload != null) {
-                afterReload.run();
+                // 配置文本解析失败（如非法 MiniMessage）时不要让回执永远不会来
+                getLogger().log(Level.SEVERE, "重载配置失败，部分配置可能未生效", ex);
             }
         });
     }

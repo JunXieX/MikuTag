@@ -49,8 +49,8 @@ public final class SqlStorage implements Storage {
     private Connection connection;
     private volatile boolean closed;
 
-    /** 已提示过的“无法解析”称号行，避免远程库每轮重读都重复刷同一条日志。由 dbLock 保护。 */
-    private final Set<String> warnedBadRows = new HashSet<>();
+    /** 已提示过的坏称号行（非法 ID 或文本无法解析），避免远程库每轮重读重复刷日志。由 dbLock 保护。 */
+    private final Set<String> warnedBadTitleIds = new HashSet<>();
 
     private final String titleUpsertSql;
     private final String reqDeleteSql;
@@ -317,7 +317,9 @@ public final class SqlStorage implements Storage {
                         String id = rs.getString("id");
                         if (!Title.isValidId(id)) {
                             // 手工改库/旧数据可能出现非法 ID：跳过该行而非让整张表加载失败
-                            logger.warning("称号表存在非法 ID（" + id + "），已跳过该行");
+                            if (warnedBadTitleIds.add(String.valueOf(id))) {
+                                logger.warning("称号表存在非法 ID（" + id + "），已跳过该行（仅首次提示）");
+                            }
                             continue;
                         }
                         String iconName = rs.getString("icon");
@@ -335,8 +337,9 @@ public final class SqlStorage implements Storage {
                                     rs.getLong("created_at")));
                         } catch (RuntimeException ex) {
                             // 单行坏文本（例如手工改库写入非法 MiniMessage）不能拖垮整张称号表
-                            if (warnedBadRows.add(id)) {
-                                logger.warning("称号 " + id + " 的文本无法解析，已跳过该行: " + ex.getMessage());
+                            if (warnedBadTitleIds.add(id)) {
+                                logger.warning("称号 " + id + " 的文本无法解析，已跳过该行（仅首次提示）: "
+                                        + ex.getMessage());
                             }
                         }
                     }

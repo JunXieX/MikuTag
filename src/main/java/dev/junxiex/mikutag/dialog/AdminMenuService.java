@@ -30,7 +30,10 @@ import java.util.Map;
  */
 public final class AdminMenuService {
 
-    /** 描述列是 TEXT（约 64KB）；回填上限取一个足够大的值，避免只改其它字段就截断长描述。 */
+    /**
+     * 描述列是 TEXT（约 64KB），但对话框字符串不宜过大；这里取 8192，并在确实超限时告警，
+     * 避免“只改其它字段再保存”静默丢掉尾部内容。
+     */
     private static final int DESCRIPTION_MAX_LENGTH = 8192;
 
     private final MikuTagPlugin plugin;
@@ -121,8 +124,12 @@ public final class AdminMenuService {
                 .onTrue("true")
                 .onFalse("false")
                 .build());
-        inputs.add(text("description", "admin.input.description",
-                creating ? "" : joinDescription(title.description()), DESCRIPTION_MAX_LENGTH));
+        String descriptionText = creating ? "" : joinDescription(title.description());
+        if (descriptionText.length() > DESCRIPTION_MAX_LENGTH) {
+            plugin.getLogger().warning("称号 " + title.id() + " 的描述超过 " + DESCRIPTION_MAX_LENGTH
+                    + " 字符，在编辑器中保存会被截断");
+        }
+        inputs.add(text("description", "admin.input.description", descriptionText, DESCRIPTION_MAX_LENGTH));
 
         List<DialogBody> bodies = new ArrayList<>();
         bodies.add(DialogBody.plainMessage(cfg.message("admin.hint.requirements")));
@@ -205,9 +212,9 @@ public final class AdminMenuService {
             days = 0;
         }
         Title existing = plugin.titleManager().get(id);
-        // 响应缺字段时保持原状态：新建默认在售，编辑沿用当前值
+        // 响应缺字段时：新建默认在售，编辑沿用当前值
         Boolean sellable = view.getBoolean("sellable");
-        boolean sell = sellable != null ? sellable : existing != null && existing.sellable();
+        boolean sell = sellable != null ? sellable : existing == null || existing.sellable();
 
         List<String> description = parseDescription(view.getText("description"));
 
