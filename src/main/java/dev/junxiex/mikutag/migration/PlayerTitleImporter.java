@@ -145,16 +145,11 @@ public final class PlayerTitleImporter {
         String param = cfg.getString("MySQL.param", "");
         StringBuilder url = new StringBuilder("jdbc:mysql://").append(host).append(':').append(port)
                 .append('/').append(database);
-        // PlayerTitle 示例值形如 "&allowPublicKeyRetrieval=true"（自带前导 &），统一剥掉前导 ?/&
-        String query = param.trim();
-        while (query.startsWith("?") || query.startsWith("&")) {
-            query = query.substring(1);
-        }
-        // 与主存储一致：源库主机黑洞时不能让 /mikutag import 无限期挂着
-        query = JdbcParameters.withDefaults(query);
+        // PlayerTitle 示例值形如 "&allowPublicKeyRetrieval=true"（自带前导 &），withDefaults 会统一剥掉
+        String query = JdbcParameters.withDefaults(param);
         url.append('?').append(query);
         if (cfg.getBoolean("MySQL.UseSSL", false)) {
-            url.append(url.indexOf("?") >= 0 ? "&" : "?").append("useSSL=true");
+            url.append("&useSSL=true");
         }
         try {
             return DriverManager.getConnection(url.toString(), user, password);

@@ -10,9 +10,12 @@ public final class JdbcParameters {
     private JdbcParameters() {
     }
 
-    /** 返回补好超时的查询串（不含前导 ?）。 */
+    /** 返回补好超时的查询串（不含前导 ?；管理员误带前导 ?/& 也会被剥掉）。 */
     public static String withDefaults(String parameters) {
         String configured = parameters == null ? "" : parameters.trim();
+        while (configured.startsWith("?") || configured.startsWith("&")) {
+            configured = configured.substring(1).trim();
+        }
         StringBuilder query = new StringBuilder(configured);
         appendDefault(query, configured, "connectTimeout", "5000");
         appendDefault(query, configured, "socketTimeout", "15000");

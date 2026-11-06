@@ -92,7 +92,7 @@ admin:
   invalid-id: "<prefix><red>称号 ID 非法（仅允许字母、数字、下划线、短横线，且不能为空）。"
   invalid-icon: "<prefix><red>图标非法（{value} 不是有效的物品材质名）。"
   invalid-days: "<prefix><red>天数非法（{value} 不是有效整数）。"
-  invalid-requirement: "<prefix><red>获取条件非法（{value}），每行格式：VAULT:金额 或 PERMISSION:权限节点。"
+  invalid-requirement: "<prefix><red>获取条件非法（{value}），格式：VAULT:金额 或 PERMISSION:权限节点（多条用 | 分隔）。"
   invalid-name: "<prefix><red>称号名称不能为空。"
   exists: "<prefix><red>称号 {id} 已存在。"
   tooltip-id: "<gray>ID：{id}"
