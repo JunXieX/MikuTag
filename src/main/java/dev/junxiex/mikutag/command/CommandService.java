@@ -407,8 +407,10 @@ public final class CommandService {
         // reloadConfigs 的称号重读是异步的：立即回复会报出重读前的旧数量。
         // 先回"已触发"，重读完成后再回报真实数量（在重读任务的回调里回投主/区域线程）。
         sender.sendMessage(plugin.configManager().message("command.reload-start"));
-        plugin.reloadConfigs(() -> reply(sender, plugin.configManager().message("command.reload",
-                Map.of("count", String.valueOf(plugin.titleManager().size())))));
+        plugin.reloadConfigs(
+                () -> reply(sender, plugin.configManager().message("command.reload",
+                        Map.of("count", String.valueOf(plugin.titleManager().size())))),
+                () -> reply(sender, plugin.configManager().message("command.reload-failed")));
         return 1;
     }
 

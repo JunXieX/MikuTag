@@ -47,6 +47,12 @@ public final class TitleManager {
     private final Object writeLock = new Object();
 
     /**
+     * 串行化称号落库，并在落库前重新确认自己仍是最新改动。
+     * AsyncScheduler 不保证同 ID 任务的执行顺序，没有这把锁时“先保存后删除”可能以删库后重插收尾。
+     */
+    private final Object persistLock = new Object();
+
+    /**
      * 尚未确认落库的本地改动明细，由 {@link #writeLock} 保护。
      * <p>
      * 保存/删除是"先改内存快照、后异步落库"，存在两个窗口需要兜底：
@@ -192,13 +198,20 @@ public final class TitleManager {
             mutationVersion++;
         }
         plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
-            try {
-                storage.upsertTitle(title);
-                // 仅在确实写入成功后才清除脏标记：写库失败时保留，使重读继续以内存版本为准，
-                // 并在关服时由 flushPendingMutations 再补写一次，避免管理员的改动被旧库内容覆盖。
-                markPersisted(title.id(), title, null);
-            } catch (RuntimeException ex) {
-                plugin.getLogger().severe("保存称号 " + title.id() + " 失败: " + ex.getMessage());
+            synchronized (persistLock) {
+                synchronized (writeLock) {
+                    if (dirtyUpserts.get(title.id()) != title) {
+                        return; // 已有更晚的保存/删除接管，由那次任务落库
+                    }
+                }
+                try {
+                    storage.upsertTitle(title);
+                    // 仅在确实写入成功后才清除脏标记：写库失败时保留，使重读继续以内存版本为准，
+                    // 并在关服时由 flushPendingMutations 再补写一次，避免管理员的改动被旧库内容覆盖。
+                    markPersisted(title.id(), title, null);
+                } catch (RuntimeException ex) {
+                    plugin.getLogger().severe("保存称号 " + title.id() + " 失败: " + ex.getMessage());
+                }
             }
         });
     }
@@ -216,12 +229,19 @@ public final class TitleManager {
             mutationVersion++;
         }
         plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
-            try {
-                storage.deleteTitle(id);
-                // 同上：仅成功才清除脏标记
-                markPersisted(id, null, id);
-            } catch (RuntimeException ex) {
-                plugin.getLogger().severe("删除称号 " + id + " 失败: " + ex.getMessage());
+            synchronized (persistLock) {
+                synchronized (writeLock) {
+                    if (!dirtyDeletes.contains(id)) {
+                        return; // 已被后续保存覆盖（重建同 ID 称号），由保存任务落库
+                    }
+                }
+                try {
+                    storage.deleteTitle(id);
+                    // 同上：仅成功才清除脏标记
+                    markPersisted(id, null, id);
+                } catch (RuntimeException ex) {
+                    plugin.getLogger().severe("删除称号 " + id + " 失败: " + ex.getMessage());
+                }
             }
         });
     }
@@ -237,9 +257,12 @@ public final class TitleManager {
             if (saved != null) {
                 if (dirtyUpserts.get(id) == saved) {
                     dirtyUpserts.remove(id);
+                    // 落库期间可能有重读已读过旧库内容：递增版本让本轮重读作废，下一轮再读新数据
+                    mutationVersion++;
                 }
             } else if (dirtyDeletes.contains(deletedId)) {
                 dirtyDeletes.remove(deletedId);
+                mutationVersion++;
             }
         }
     }
@@ -262,18 +285,20 @@ public final class TitleManager {
             dirtyUpserts.clear();
             dirtyDeletes.clear();
         }
-        for (Title title : upserts.values()) {
-            try {
-                storage.upsertTitle(title);
-            } catch (RuntimeException ex) {
-                plugin.getLogger().severe("关服补写称号 " + title.id() + " 失败: " + ex.getMessage());
+        synchronized (persistLock) {
+            for (Title title : upserts.values()) {
+                try {
+                    storage.upsertTitle(title);
+                } catch (RuntimeException ex) {
+                    plugin.getLogger().severe("关服补写称号 " + title.id() + " 失败: " + ex.getMessage());
+                }
             }
-        }
-        for (String id : deletes) {
-            try {
-                storage.deleteTitle(id);
-            } catch (RuntimeException ex) {
-                plugin.getLogger().severe("关服补删称号 " + id + " 失败: " + ex.getMessage());
+            for (String id : deletes) {
+                try {
+                    storage.deleteTitle(id);
+                } catch (RuntimeException ex) {
+                    plugin.getLogger().severe("关服补删称号 " + id + " 失败: " + ex.getMessage());
+                }
             }
         }
     }

@@ -14,6 +14,7 @@ command:
   player-not-found: "<prefix><red>未找到玩家 {player}。"
   title-not-found: "<prefix><red>未找到称号 {title}。"
   reload: "<prefix><green>配置已重载，共加载 {count} 个称号。"
+  reload-failed: "<prefix><red>配置重载失败，请查看控制台日志。"
   reload-start: "<prefix><yellow>正在重载配置……"
   unequip-ok: "<prefix><green>已卸下当前称号。"
   unequip-none: "<prefix><yellow>你当前没有佩戴任何称号。"
@@ -99,13 +100,13 @@ admin:
     id: "<gray>称号 ID"
     name: "<gray>称号名称（支持 MiniMessage 与 & 颜色码）"
     icon: "<gray>图标材质（如 NAME_TAG）"
-    requirements: "<gray>获取条件（每行一条：VAULT:金额 或 PERMISSION:节点；留空=免费）"
+    requirements: "<gray>获取条件（多条用 | 分隔：VAULT:金额 或 PERMISSION:节点；留空=免费）"
     days: "<gray>有效天数（0 = 永久）"
     sellable: "<gray>是否在商城出售"
     description: "<gray>描述（多行用 | 分隔，支持 MiniMessage 与 & 颜色码）"
   hint:
     description: "<gray>多行请用 | 分隔。"
-    requirements: "<gray>可叠加多个条件（须全部满足）。例：VAULT:1000 与 PERMISSION:mikutag.vip 各占一行。"
+    requirements: "<gray>可叠加多个条件（须全部满足）。例：VAULT:1000 | PERMISSION:mikutag.vip"
 
 time:
   zero: "<gray>0 秒"

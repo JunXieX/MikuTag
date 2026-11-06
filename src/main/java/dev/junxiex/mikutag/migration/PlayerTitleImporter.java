@@ -5,6 +5,7 @@ import dev.junxiex.mikutag.model.Requirement;
 import dev.junxiex.mikutag.model.Title;
 import dev.junxiex.mikutag.storage.Storage;
 import dev.junxiex.mikutag.storage.WriteOp;
+import dev.junxiex.mikutag.util.JdbcParameters;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -149,9 +150,9 @@ public final class PlayerTitleImporter {
         while (query.startsWith("?") || query.startsWith("&")) {
             query = query.substring(1);
         }
-        if (!query.isBlank()) {
-            url.append('?').append(query);
-        }
+        // 与主存储一致：源库主机黑洞时不能让 /mikutag import 无限期挂着
+        query = JdbcParameters.withDefaults(query);
+        url.append('?').append(query);
         if (cfg.getBoolean("MySQL.UseSSL", false)) {
             url.append(url.indexOf("?") >= 0 ? "&" : "?").append("useSSL=true");
         }

@@ -3,6 +3,7 @@ package dev.junxiex.mikutag.storage;
 import dev.junxiex.mikutag.model.PlayerTagData;
 import dev.junxiex.mikutag.model.Requirement;
 import dev.junxiex.mikutag.model.Title;
+import dev.junxiex.mikutag.util.JdbcParameters;
 import org.bukkit.Material;
 
 import java.io.File;
@@ -116,40 +117,10 @@ public final class SqlStorage implements Storage {
         String scheme = type == DatabaseType.MYSQL ? "jdbc:mysql://" : "jdbc:mariadb://";
         StringBuilder sb = new StringBuilder(scheme)
                 .append(host).append(':').append(port).append('/').append(database);
-        // 驱动默认 0 = 无限等待：远端库网络黑洞时阻塞会发生在 dbLock 内，并拖住关服。
-        // 只在用户没有自己指定时补默认值，保留覆盖能力。
-        String configured = parameters == null ? "" : parameters.trim();
-        StringBuilder query = new StringBuilder(configured);
-        appendDefaultParam(query, configured, "connectTimeout", "5000");
-        appendDefaultParam(query, configured, "socketTimeout", "15000");
-        if (!query.isEmpty()) {
-            sb.append('?').append(query);
-        }
+        // 驱动默认 0 = 无限等待：网络黑洞时阻塞会发生在 dbLock 内，并拖住关服。
+        String query = JdbcParameters.withDefaults(parameters);
+        sb.append('?').append(query);
         return sb.toString();
-    }
-
-    private static void appendDefaultParam(StringBuilder query, String configured, String key, String value) {
-        if (hasParam(configured, key)) {
-            return;
-        }
-        if (!query.isEmpty()) {
-            query.append('&');
-        }
-        query.append(key).append('=').append(value);
-    }
-
-    private static boolean hasParam(String parameters, String key) {
-        if (parameters.isEmpty()) {
-            return false;
-        }
-        for (String part : parameters.split("&")) {
-            int equal = part.indexOf('=');
-            String name = equal < 0 ? part : part.substring(0, equal);
-            if (name.trim().equalsIgnoreCase(key)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private Connection openConnection() throws SQLException {

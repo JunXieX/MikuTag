@@ -84,6 +84,9 @@ public record Requirement(ReqType type, double amount, String permission) {
                 }
                 result.add(vault(amount));
             } else {
+                if (value.length() > 255) {
+                    throw new IllegalArgumentException(entry); // 与 mikutag_title_requirements 列宽对齐
+                }
                 result.add(permission(value));
             }
         }

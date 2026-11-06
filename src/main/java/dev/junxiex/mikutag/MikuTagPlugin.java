@@ -158,7 +158,7 @@ public final class MikuTagPlugin extends JavaPlugin {
      * 配置读取是文件 IO，称号重读是数据库 IO，全部放到异步线程，避免 /mikutag reload
      * 在 Folia 区域线程上阻塞；需要真实结果的调用方通过回调获取。
      */
-    public void reloadConfigs(Runnable afterReload) {
+    public void reloadConfigs(Runnable onSuccess, Runnable onFailure) {
         getServer().getAsyncScheduler().runNow(this, task -> {
             try {
                 configManager.loadAll();
@@ -177,12 +177,16 @@ public final class MikuTagPlugin extends JavaPlugin {
                     getLogger().warning("重读称号列表失败: " + ex.getMessage());
                 }
                 applyGlobalState();
-                if (afterReload != null) {
-                    afterReload.run();
-                }
             } catch (RuntimeException ex) {
-                // 配置文本解析失败（如非法 MiniMessage）时不要让回执永远不会来
+                // 配置文本解析失败（如非法 MiniMessage）：必须给调用方回执，否则管理员只看到“正在重载”
                 getLogger().log(Level.SEVERE, "重载配置失败，部分配置可能未生效", ex);
+                if (onFailure != null) {
+                    onFailure.run();
+                }
+                return;
+            }
+            if (onSuccess != null) {
+                onSuccess.run();
             }
         });
     }
