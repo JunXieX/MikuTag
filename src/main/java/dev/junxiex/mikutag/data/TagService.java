@@ -59,10 +59,6 @@ public final class TagService {
         return store.get(player.getUniqueId());
     }
 
-    private boolean ready(PlayerTagData data) {
-        return data != null && data.loaded();
-    }
-
     /**
      * 购买称号：全部条件（AND）校验通过后才扣款授予。
      * <p>
@@ -72,7 +68,7 @@ public final class TagService {
      */
     public BuyResult buy(Player player, Title title) {
         PlayerTagData data = data(player);
-        if (!ready(data)) {
+        if (data == null) {
             return BuyResult.FAILED;
         }
         long now = System.currentTimeMillis();
@@ -114,7 +110,7 @@ public final class TagService {
     /** 佩戴称号。 */
     public EquipResult equip(Player player, Title title) {
         PlayerTagData data = data(player);
-        if (!ready(data)) {
+        if (data == null) {
             return EquipResult.FAILED;
         }
         long now = System.currentTimeMillis();
@@ -125,12 +121,14 @@ public final class TagService {
         return EquipResult.OK;
     }
 
-    public void unequip(Player player) {
+    /** @return 是否确实清掉了佩戴（数据未加载或本就未佩戴返回 {@code false}） */
+    public boolean unequip(Player player) {
         PlayerTagData data = data(player);
-        if (!ready(data) || data.equipped().isEmpty()) {
-            return;
+        if (data == null || data.equipped().isEmpty()) {
+            return false;
         }
         setEquipped(player, data, "");
+        return true;
     }
 
     private void setEquipped(Player player, PlayerTagData data, String titleId) {
@@ -146,14 +144,12 @@ public final class TagService {
 
     /**
      * 直接发放称号（管理员指令 / 对外 API）。已永久持有则保持永久，否则取较晚的到期时间。
-     * days &lt;= 0 表示永久。
-     *
-     * @return 数据已加载并完成发放返回 {@code true}；玩家数据尚未加载完成返回 {@code false}
+     * days &lt;= 0 表示永久；玩家数据未加载时不生效（调用方需先确认数据就绪）。
      */
-    public boolean grant(Player player, String titleId, int days) {
+    public void grant(Player player, String titleId, int days) {
         PlayerTagData data = data(player);
-        if (!ready(data)) {
-            return false;
+        if (data == null) {
+            return;
         }
         long now = System.currentTimeMillis();
         long newExpiry = days <= 0 ? 0L : now + days * DAY_MILLIS;
@@ -168,7 +164,6 @@ public final class TagService {
         store.enqueueGrant(data.uuid(), titleId, finalExpiry);
         countCache.remove(data.uuid());
         maybeAutoEquip(player, data, titleId);
-        return true;
     }
 
     /**
@@ -200,7 +195,7 @@ public final class TagService {
     /** 收回称号。返回是否确实持有过。 */
     public boolean revoke(Player player, String titleId) {
         PlayerTagData data = data(player);
-        if (!ready(data) || !data.everOwned(titleId)) {
+        if (data == null || !data.everOwned(titleId)) {
             return false;
         }
         String previous = data.equipped();
@@ -263,18 +258,16 @@ public final class TagService {
      * <p>
      * 同一玩家同时只允许一次补拉：菜单按钮可被连点，若不做去重，每次点击都会各自
      * 发起一次数据库查询（数据库异常时更会堆积）。
-     *
-     * @return 是否确实发起了一次加载
      */
-    public boolean requestReload(Player player) {
+    public void requestReload(Player player) {
         if (data(player) != null) {
-            return false;
+            return;
         }
         UUID uuid = player.getUniqueId();
         // 玩家名在进入异步任务前取好：Bukkit 实体 API 不应在异步线程读取
         String name = player.getName();
         if (reloading.putIfAbsent(uuid, Boolean.TRUE) != null) {
-            return true; // 已有一次补拉在途，本次不重复发起
+            return; // 已有一次补拉在途，本次不重复发起
         }
         plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
             try {
@@ -293,7 +286,6 @@ public final class TagService {
                 reloading.remove(uuid);
             }
         });
-        return true;
     }
 
     /** 当前佩戴的称号定义（未佩戴、已过期或已删除为 null）。 */
@@ -311,7 +303,7 @@ public final class TagService {
      */
     public void clearExpiredEquipped(Player player) {
         PlayerTagData data = data(player);
-        if (!ready(data)) {
+        if (data == null) {
             return;
         }
         String id = data.equipped();

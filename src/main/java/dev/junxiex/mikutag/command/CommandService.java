@@ -4,6 +4,7 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
 import dev.junxiex.mikutag.MikuTagPlugin;
 import dev.junxiex.mikutag.config.ConfigManager;
 import dev.junxiex.mikutag.model.Requirement;
@@ -50,15 +51,7 @@ public final class CommandService {
                                     .executes(this::openOther)))
                     .then(Commands.literal("equip")
                             .then(Commands.argument("title", StringArgumentType.string())
-                                    .suggests((ctx, builder) -> {
-                                        String remaining = builder.getRemainingLowerCase();
-                                        for (Title title : plugin.titleManager().ordered()) {
-                                            if (title.id().startsWith(remaining)) {
-                                                builder.suggest(StringArgumentType.escapeIfRequired(title.id()));
-                                            }
-                                        }
-                                        return builder.buildFuture();
-                                    })
+                                    .suggests(suggestTitleIds())
                                     .executes(this::equip)))
                     .then(Commands.literal("unequip").executes(this::unequip))
                     .then(Commands.literal("admin")
@@ -68,15 +61,7 @@ public final class CommandService {
                             .requires(this::isAdmin)
                             .then(Commands.argument("player", ArgumentTypes.player())
                                     .then(Commands.argument("title", StringArgumentType.string())
-                                            .suggests((ctx, builder) -> {
-                                                String remaining = builder.getRemainingLowerCase();
-                                                for (Title title : plugin.titleManager().ordered()) {
-                                                    if (title.id().startsWith(remaining)) {
-                                                        builder.suggest(StringArgumentType.escapeIfRequired(title.id()));
-                                                    }
-                                                }
-                                                return builder.buildFuture();
-                                            })
+                                            .suggests(suggestTitleIds())
                                             .executes(ctx -> give(ctx, 0))
                                             .then(Commands.argument("days", IntegerArgumentType.integer(0))
                                                     .executes(ctx -> give(ctx,
@@ -137,24 +122,55 @@ public final class CommandService {
         return false;
     }
 
-    private int openSelf(CommandContext<CommandSourceStack> ctx) {
-        if (ctx.getSource().getSender() instanceof Player player) {
-            if (requireUse(player)) {
-                plugin.menuService().openWarehouse(player, 0);
+    /**
+     * 数据未加载时补拉一次并把"加载中"回执发给 notify，返回 false 表示本次操作无法执行。
+     * 必须在目标玩家的属主线程调用。
+     */
+    private boolean ensureLoaded(Player target, CommandSender notify) {
+        if (plugin.tagService().data(target) != null) {
+            return true;
+        }
+        plugin.tagService().requestReload(target);
+        reply(notify, notify == target
+                ? plugin.configManager().message("menu.loading")
+                : plugin.configManager().message("command.data-loading", Map.of("player", target.getName())));
+        return false;
+    }
+
+    /** 称号 ID 补全：equip / give 的 title 参数共用。 */
+    private SuggestionProvider<CommandSourceStack> suggestTitleIds() {
+        return (ctx, builder) -> {
+            String remaining = builder.getRemainingLowerCase();
+            for (Title title : plugin.titleManager().ordered()) {
+                if (title.id().startsWith(remaining)) {
+                    builder.suggest(StringArgumentType.escapeIfRequired(title.id()));
+                }
             }
-        } else {
+            return builder.buildFuture();
+        };
+    }
+
+    /** 菜单类指令的玩家取用：控制台或无权限时给出提示并返回 null。 */
+    private Player menuActor(CommandContext<CommandSourceStack> ctx) {
+        if (!(ctx.getSource().getSender() instanceof Player player)) {
             ctx.getSource().getSender().sendMessage(plugin.configManager().message("command.console-no-menu"));
+            return null;
+        }
+        return requireUse(player) ? player : null;
+    }
+
+    private int openSelf(CommandContext<CommandSourceStack> ctx) {
+        Player player = menuActor(ctx);
+        if (player != null) {
+            plugin.menuService().openWarehouse(player, 0);
         }
         return 1;
     }
 
     private int openShop(CommandContext<CommandSourceStack> ctx) {
-        if (ctx.getSource().getSender() instanceof Player player) {
-            if (requireUse(player)) {
-                plugin.menuService().openShop(player, 0);
-            }
-        } else {
-            ctx.getSource().getSender().sendMessage(plugin.configManager().message("command.console-no-menu"));
+        Player player = menuActor(ctx);
+        if (player != null) {
+            plugin.menuService().openShop(player, 0);
         }
         return 1;
     }
@@ -195,6 +211,9 @@ public final class CommandService {
             return 0;
         }
         player.getScheduler().run(plugin, task -> {
+            if (!ensureLoaded(player, player)) {
+                return;
+            }
             var result = plugin.tagService().equip(player, title);
             player.sendMessage(plugin.menuService().equipMessage(result, title));
         }, null);
@@ -210,12 +229,12 @@ public final class CommandService {
             return 0;
         }
         player.getScheduler().run(plugin, task -> {
-            if (plugin.tagService().equippedId(player).isEmpty()) {
-                player.sendMessage(plugin.configManager().message("command.unequip-none"));
-            } else {
-                plugin.tagService().unequip(player);
-                player.sendMessage(plugin.configManager().message("command.unequip-ok"));
+            if (!ensureLoaded(player, player)) {
+                return;
             }
+            boolean cleared = plugin.tagService().unequip(player);
+            player.sendMessage(plugin.configManager().message(
+                    cleared ? "command.unequip-ok" : "command.unequip-none"));
         }, null);
         return 1;
     }
@@ -236,10 +255,13 @@ public final class CommandService {
             return 0;
         }
         // grant 会改玩家缓存并可能触发自动佩戴，必须在目标玩家属主线程执行；
-        // 结果按真实成败回发，避免"数据未加载导致发放被跳过、管理员却收到成功提示"。
+        // 数据未就绪时先补拉并回执，避免"发放被跳过、管理员却收到成功提示"。
         target.getScheduler().run(plugin, task -> {
-            boolean ok = plugin.tagService().grant(target, title.id(), days);
-            reply(sender, plugin.configManager().message(ok ? "command.give-ok" : "command.data-loading",
+            if (!ensureLoaded(target, sender)) {
+                return;
+            }
+            plugin.tagService().grant(target, title.id(), days);
+            reply(sender, plugin.configManager().message("command.give-ok",
                     Map.of("player", target.getName(),
                             "title", ConfigManager.plain(title.displayName()),
                             "duration", ConfigManager.plain(plugin.configManager().durationLabel(days)))));
@@ -264,9 +286,7 @@ public final class CommandService {
         }
         // revoke 改玩家缓存，必须在目标玩家属主线程执行；结果按真实成败回发。
         target.getScheduler().run(plugin, task -> {
-            if (plugin.tagStore().get(target.getUniqueId()) == null) {
-                reply(sender, plugin.configManager().message("command.data-loading",
-                        Map.of("player", target.getName())));
+            if (!ensureLoaded(target, sender)) {
                 return;
             }
             boolean ok = plugin.tagService().revoke(target, title.id());

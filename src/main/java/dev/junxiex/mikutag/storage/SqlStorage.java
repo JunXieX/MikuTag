@@ -12,6 +12,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLRecoverableException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -249,6 +250,22 @@ public final class SqlStorage implements Storage {
     }
 
     /**
+     * 只有连接类错误才值得重建连接：数据类错误（约束冲突、列不存在、权限不足）重连既修不好，
+     * 又会在远端库每轮定时重读时把健康连接拆掉，把真实错误淹没在"已重建"日志里。
+     */
+    private static boolean isConnectionFailure(SQLException e) {
+        // 批量执行失败的顶层异常常是 BatchUpdateException（SQLState 可能为空），
+        // 真实原因挂在 next 链上，必须沿链判定
+        for (SQLException current = e; current != null; current = current.getNextException()) {
+            if (current instanceof SQLRecoverableException
+                    || String.valueOf(current.getSQLState()).startsWith("08")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * 连接异常时的兜底重建。调用方必须持有 {@link #dbLock}，且本次操作仍会照常失败
      * （由上层把数据重新入队），下一轮写回即可在新连接上成功。
      * <p>
@@ -316,7 +333,9 @@ public final class SqlStorage implements Storage {
                     }
                 }
             } catch (SQLException e) {
-                reconnectLocked(e);
+                if (isConnectionFailure(e)) {
+                    reconnectLocked(e);
+                }
                 throw new StorageException("加载称号列表失败", e);
             }
         }
@@ -392,7 +411,9 @@ public final class SqlStorage implements Storage {
                     conn.rollback();
                 } catch (SQLException ignored) {
                 }
-                reconnectLocked(e);
+                if (isConnectionFailure(e)) {
+                    reconnectLocked(e);
+                }
                 throw new StorageException("保存称号失败: " + title.id(), e);
             } finally {
                 try {
@@ -437,7 +458,9 @@ public final class SqlStorage implements Storage {
                     conn.rollback();
                 } catch (SQLException ignored) {
                 }
-                reconnectLocked(e);
+                if (isConnectionFailure(e)) {
+                    reconnectLocked(e);
+                }
                 throw new StorageException("删除称号失败: " + id, e);
             } finally {
                 try {
@@ -482,7 +505,9 @@ public final class SqlStorage implements Storage {
                             .put(rs.getString("title_id"), rs.getLong("expires_at"));
                 }
             } catch (SQLException e) {
-                reconnectLocked(e);
+                if (isConnectionFailure(e)) {
+                    reconnectLocked(e);
+                }
                 throw new StorageException("加载玩家称号快照失败", e);
             }
             try (PreparedStatement ps = conn.prepareStatement(
@@ -496,7 +521,9 @@ public final class SqlStorage implements Storage {
                     }
                 }
             } catch (SQLException e) {
-                reconnectLocked(e);
+                if (isConnectionFailure(e)) {
+                    reconnectLocked(e);
+                }
                 throw new StorageException("加载玩家佩戴快照失败", e);
             }
         }
@@ -519,7 +546,9 @@ public final class SqlStorage implements Storage {
                         }
                     }
                 } catch (SQLException e) {
-                    reconnectLocked(e);
+                    if (isConnectionFailure(e)) {
+                        reconnectLocked(e);
+                    }
                     throw new StorageException("加载玩家称号失败: " + uuid, e);
                 }
                 try (PreparedStatement ps = conn.prepareStatement(
@@ -531,20 +560,18 @@ public final class SqlStorage implements Storage {
                         }
                     }
                 } catch (SQLException e) {
-                    reconnectLocked(e);
+                    if (isConnectionFailure(e)) {
+                        reconnectLocked(e);
+                    }
                     throw new StorageException("加载玩家佩戴状态失败: " + uuid, e);
                 }
             }
         }
-        data.markLoaded();
         return data;
     }
 
     @Override
     public void writeBatch(List<WriteOp> ops) {
-        if (ops.isEmpty()) {
-            return;
-        }
         synchronized (dbLock) {
             if (closed) {
                 // 仅可能出现在关服竞态：此时已无法写库，但必须让问题可见而非静默丢数据
@@ -569,31 +596,37 @@ public final class SqlStorage implements Storage {
                         while (end < ops.size() && ops.get(end).getClass() == first.getClass()) {
                             end++;
                         }
-                        if (first instanceof WriteOp.Grant) {
-                            for (int k = i; k < end; k++) {
-                                WriteOp.Grant g = (WriteOp.Grant) ops.get(k);
-                                grant.setString(1, g.uuid().toString());
-                                grant.setString(2, g.titleId());
-                                grant.setLong(3, g.expiresAt());
-                                grant.addBatch();
+                        // sealed 类型的穷举 switch：新增一种 WriteOp 时编译期就会报错，
+                        // 而不是在写回线程里退化成 ClassCastException、打断整批数据
+                        switch (first) {
+                            case WriteOp.Grant ignored -> {
+                                for (int k = i; k < end; k++) {
+                                    WriteOp.Grant g = (WriteOp.Grant) ops.get(k);
+                                    grant.setString(1, g.uuid().toString());
+                                    grant.setString(2, g.titleId());
+                                    grant.setLong(3, g.expiresAt());
+                                    grant.addBatch();
+                                }
+                                grant.executeBatch();
                             }
-                            grant.executeBatch();
-                        } else if (first instanceof WriteOp.Revoke) {
-                            for (int k = i; k < end; k++) {
-                                WriteOp.Revoke r = (WriteOp.Revoke) ops.get(k);
-                                revoke.setString(1, r.uuid().toString());
-                                revoke.setString(2, r.titleId());
-                                revoke.addBatch();
+                            case WriteOp.Revoke ignored -> {
+                                for (int k = i; k < end; k++) {
+                                    WriteOp.Revoke r = (WriteOp.Revoke) ops.get(k);
+                                    revoke.setString(1, r.uuid().toString());
+                                    revoke.setString(2, r.titleId());
+                                    revoke.addBatch();
+                                }
+                                revoke.executeBatch();
                             }
-                            revoke.executeBatch();
-                        } else {
-                            for (int k = i; k < end; k++) {
-                                WriteOp.State s = (WriteOp.State) ops.get(k);
-                                state.setString(1, s.uuid().toString());
-                                state.setString(2, s.equipped());
-                                state.addBatch();
+                            case WriteOp.State ignored -> {
+                                for (int k = i; k < end; k++) {
+                                    WriteOp.State s = (WriteOp.State) ops.get(k);
+                                    state.setString(1, s.uuid().toString());
+                                    state.setString(2, s.equipped());
+                                    state.addBatch();
+                                }
+                                state.executeBatch();
                             }
-                            state.executeBatch();
                         }
                         i = end;
                     }
@@ -604,7 +637,9 @@ public final class SqlStorage implements Storage {
                     conn.rollback();
                 } catch (SQLException ignored) {
                 }
-                reconnectLocked(e);
+                if (isConnectionFailure(e)) {
+                    reconnectLocked(e);
+                }
                 throw new StorageException("批量写回玩家称号数据失败", e);
             } finally {
                 try {

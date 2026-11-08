@@ -51,7 +51,7 @@ public final class AdminMenuService {
         List<Title> titles = plugin.titleManager().ordered();
         int pageSize = cfg.pageSize();
         int totalPages = Math.max(1, (titles.size() + pageSize - 1) / pageSize);
-        page = clamp(page, totalPages);
+        page = MenuService.clamp(page, totalPages);
         int from = page * pageSize;
         int to = Math.min(titles.size(), from + pageSize);
 
@@ -70,13 +70,13 @@ public final class AdminMenuService {
         }
         if (totalPages > 1) {
             if (page > 0) {
-                buttons.add(navButton(cfg.message("menu.prev-page"), ClickPayload.ADMIN_PREV, page - 1));
+                buttons.add(MenuService.navButton(cfg.message("menu.prev-page"), ClickPayload.ADMIN_PREV, page - 1));
             }
             if (page < totalPages - 1) {
-                buttons.add(navButton(cfg.message("menu.next-page"), ClickPayload.ADMIN_NEXT, page + 1));
+                buttons.add(MenuService.navButton(cfg.message("menu.next-page"), ClickPayload.ADMIN_NEXT, page + 1));
             }
         }
-        buttons.add(navButton(cfg.message("menu.warehouse-title"), ClickPayload.WAREHOUSE, 0));
+        buttons.add(MenuService.navButton(cfg.message("menu.warehouse-title"), ClickPayload.WAREHOUSE, 0));
 
         Component info = cfg.message("menu.page-info", Map.of(
                 "page", String.valueOf(page + 1),
@@ -118,7 +118,7 @@ public final class AdminMenuService {
         inputs.add(text("requirements", "admin.input.requirements",
                 creating ? "" : Requirement.toText(title.requirements()), 1024));
         inputs.add(text("days", "admin.input.days",
-                creating ? "0" : String.valueOf(title.durationDays()), 8));
+                creating ? "0" : String.valueOf(title.durationDays()), 11));
         inputs.add(DialogInput.bool("sellable", cfg.message("admin.input.sellable"))
                 .initial(creating || title.sellable())
                 .onTrue("true")
@@ -294,19 +294,6 @@ public final class AdminMenuService {
     private void fail(Player player, Component message, String titleId, int page) {
         player.sendMessage(message);
         doOpenEditor(player, titleId, page);
-    }
-
-    private ActionButton navButton(Component text, String action, int page) {
-        return ActionButton.builder(text)
-                .action(DialogAction.customClick(MenuService.CLICK_KEY, ClickPayload.tag(action, "", page)))
-                .build();
-    }
-
-    private int clamp(int page, int totalPages) {
-        if (page < 0) {
-            return 0;
-        }
-        return Math.min(page, totalPages - 1);
     }
 
     private static String trim(String value) {

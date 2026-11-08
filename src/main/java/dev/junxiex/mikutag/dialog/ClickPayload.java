@@ -49,13 +49,9 @@ public final class ClickPayload {
     private ClickPayload() {
     }
 
-    public static String encode(String action, String id, int page) {
-        return action + "|" + (id == null ? "" : id) + "|" + page;
-    }
-
-    /** 编码为可直接交给 {@code DialogAction.customClick} 的 SNBT 负载。 */
+    /** 编码为可直接交给 {@code DialogAction.customClick} 的 SNBT 负载；id 为空串表示无目标称号。 */
     public static BinaryTagHolder tag(String action, String id, int page) {
-        return BinaryTagHolder.binaryTagHolder("{d:\"" + encode(action, id, page) + "\"}");
+        return BinaryTagHolder.binaryTagHolder("{d:\"" + action + '|' + id + '|' + page + "\"}");
     }
 
     /** 从 {@code BinaryTagHolder.string()}（形如 {d:"wh_equip|vip|0", name:"..."}）解析出编码串。 */
@@ -72,7 +68,7 @@ public final class ClickPayload {
 
     public static Parsed parse(String encoded) {
         String[] parts = encoded.split("\\|", 3);
-        String action = parts.length > 0 ? parts[0] : "";
+        String action = parts[0];
         String id = parts.length > 1 ? parts[1] : "";
         int page = 0;
         if (parts.length > 2) {

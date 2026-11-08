@@ -103,10 +103,11 @@ public final class TitleManager {
             }
             // 叠加更早的、尚未落库的本地改动：库内容可能还没包含刚保存的称号 / 仍含刚删除的称号。
             applyDirtyLocked(loaded);
-            if (signatureOf(prepared(loaded)) == snapshot.signature()) {
+            List<Title> ordered = prepared(loaded);
+            if (signatureOf(ordered) == snapshot.signature()) {
                 return false;
             }
-            replaceAll(loaded);
+            replaceAll(ordered);
             return true;
         }
     }
@@ -126,16 +127,15 @@ public final class TitleManager {
     }
 
     /**
-     * 整体替换快照并递增代号。调用方必须持有 {@link #writeLock}。
+     * 整体替换快照并递增代号。调用方必须持有 {@link #writeLock}，且传入已去重排序的列表。
      */
-    private void replaceAll(Collection<Title> titles) {
-        List<Title> list = prepared(titles);
+    private void replaceAll(List<Title> ordered) {
         Map<String, Title> map = new HashMap<>();
-        for (Title title : list) {
+        for (Title title : ordered) {
             map.put(title.id(), title);
         }
-        snapshot = new Snapshot(Map.copyOf(map), List.copyOf(list),
-                snapshot.generation() + 1, signatureOf(list));
+        snapshot = new Snapshot(Map.copyOf(map), List.copyOf(ordered),
+                snapshot.generation() + 1, signatureOf(ordered));
     }
 
     /** 去重（按 id）并按展示顺序排序；重载签名比对与实际替换共用同一排序规则。 */
@@ -192,7 +192,7 @@ public final class TitleManager {
         synchronized (writeLock) {
             Map<String, Title> map = new HashMap<>(snapshot.byId());
             map.put(title.id(), title);
-            replaceAll(map.values());
+            replaceAll(prepared(map.values()));
             dirtyUpserts.put(title.id(), title);
             dirtyDeletes.remove(title.id());
             mutationVersion++;
@@ -223,7 +223,7 @@ public final class TitleManager {
             if (map.remove(id) == null) {
                 return;
             }
-            replaceAll(map.values());
+            replaceAll(prepared(map.values()));
             dirtyDeletes.add(id);
             dirtyUpserts.remove(id);
             mutationVersion++;

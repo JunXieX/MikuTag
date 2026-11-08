@@ -73,7 +73,6 @@ public final class MikuTagPlugin extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-        registerBasePermissions();
 
         DatabaseType type = configManager.storageType();
         try {
@@ -85,10 +84,9 @@ public final class MikuTagPlugin extends JavaPlugin {
                     configManager.dbUser(), configManager.dbPassword(), configManager.dbParameters(),
                     getLogger());
         } catch (Throwable e) {
-            getLogger().severe("无法初始化 " + type.id() + " 存储，插件禁用。请检查："
+            getLogger().log(Level.SEVERE, "无法初始化 " + type.id() + " 存储，插件禁用。请检查："
                     + "1) config.yml 的 storage.type 是否正确；2) 数据库是否可连接；"
-                    + "3) 对应 JDBC 驱动是否已由 MikuTagLoader 注入（首次启动需能访问 Maven 仓库）。原因："
-                    + e);
+                    + "3) 对应 JDBC 驱动是否已由 MikuTagLoader 注入（首次启动需能访问 Maven 仓库）。", e);
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
@@ -99,10 +97,12 @@ public final class MikuTagPlugin extends JavaPlugin {
             titleManager.reloadFromStorage();
         } catch (RuntimeException e) {
             // 读称号失败时插件无法提供任何功能，直接停用；连接由 onDisable 统一关闭
-            getLogger().severe("读取称号列表失败，插件禁用：" + e.getMessage());
+            getLogger().log(Level.SEVERE, "读取称号列表失败，插件禁用", e);
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
+        // 存储与称号都就绪后再注册权限：初始化失败时不会留下无主节点
+        registerBasePermissions();
         tagStore = new PlayerTagStore(storage);
         tagService = new TagService(this, tagStore);
         economyHook = new EconomyHook(this);
@@ -142,12 +142,12 @@ public final class MikuTagPlugin extends JavaPlugin {
         try {
             titleManager.flushPendingMutations();
         } catch (RuntimeException ex) {
-            getLogger().warning("关闭时补写称号定义失败: " + ex.getMessage());
+            getLogger().log(Level.WARNING, "关闭时补写称号定义失败", ex);
         }
         try {
             tagStore.drainAndFlush();
         } catch (Exception ex) {
-            getLogger().warning("关闭时写回失败: " + ex.getMessage());
+            getLogger().log(Level.WARNING, "关闭时写回失败", ex);
         }
         tagStore.close();
     }
@@ -174,7 +174,7 @@ public final class MikuTagPlugin extends JavaPlugin {
                 try {
                     titleManager.reloadFromStorage();
                 } catch (RuntimeException ex) {
-                    getLogger().warning("重读称号列表失败: " + ex.getMessage());
+                    getLogger().log(Level.WARNING, "重读称号列表失败", ex);
                 }
                 applyGlobalState();
             } catch (RuntimeException ex) {
@@ -234,11 +234,6 @@ public final class MikuTagPlugin extends JavaPlugin {
     private synchronized void scheduleTitleSync() {
         // 以启动时真正建立连接的类型为准：热改 config 的 storage.type 需重启才生效
         if (!activeStorageType.isRemote()) {
-            if (titleSyncTask != null) {
-                titleSyncTask.cancel();
-                titleSyncTask = null;
-                scheduledSyncSeconds = -1;
-            }
             return;
         }
         int interval = configManager.titleSyncIntervalSeconds();
@@ -276,7 +271,11 @@ public final class MikuTagPlugin extends JavaPlugin {
             pm.addPermission(new Permission(Permissions.USE, "使用称号功能（打开菜单、佩戴/卸下）",
                     PermissionDefault.TRUE));
         }
-        registerPermissionWithChildren(pm, Permissions.ADMIN, "称号插件管理权限");
+        if (pm.getPermission(Permissions.ADMIN) == null) {
+            Permission admin = new Permission(Permissions.ADMIN, "称号插件管理权限", PermissionDefault.OP);
+            admin.getChildren().put(Permissions.TITLE_WILDCARD, true);
+            pm.addPermission(admin);
+        }
     }
 
     /** 为称号的 PERMISSION 型获取条件注册权限节点，使节点拥有明确描述与默认值（OP）。 */
@@ -303,15 +302,6 @@ public final class MikuTagPlugin extends JavaPlugin {
                 getLogger().warning("称号权限节点 '" + node + "' 非法，已忽略");
             }
         }
-    }
-
-    private void registerPermissionWithChildren(PluginManager pm, String name, String description) {
-        if (pm.getPermission(name) != null) {
-            return;
-        }
-        Permission admin = new Permission(name, description, PermissionDefault.OP);
-        admin.getChildren().put(Permissions.TITLE_WILDCARD, true);
-        pm.addPermission(admin);
     }
 
     /** 定时批量写回（异步线程，仅 drain 纯数据队列）。周期随 reload 生效。 */

@@ -7,12 +7,12 @@ MikuTag 是一款基于 Paper Dialog 菜单的称号插件，兼容 Paper 与 Fo
 ## 功能特性
 
 - 原生 Dialog 菜单（商城 / 称号详情 / 我的称号 / 管理 / 删除确认），无需任何菜单前置
-- 称号支持图标、MiniMessage 或 & 颜色码的名称与描述、有效期（0 = 永久）、排序
+- 称号支持图标、MiniMessage 或 & 颜色码的名称与描述、有效期（0 = 永久）；列表按 `sort_order` 排序
 - 获取条件可叠加：免费 / Vault 金币 / 权限节点（须全部满足）
 - 商城出售开关：活动限定称号可正常发放，但不出现在商城
 - 管理菜单图形化新建 / 编辑 / 删除称号，保存即生效并自动注册权限节点
 - 玩家仓库一键佩戴 / 卸下；已过期称号在仓库中可见但不能佩戴
-- 发放 / 收回指令支持指定天数；`behavior.auto-equip` 可在玩家获得新称号时自动佩戴
+- 发放指令支持指定天数（收回为整条移除）；`behavior.auto-equip` 可在玩家获得新称号时自动佩戴
 - 显示前后缀装饰（MiniMessage 或 & 颜色码），一处配置即可全局调整称号展示样式
 - 存储支持 SQLite / MySQL / MariaDB，数据异步批量写回，不阻塞游戏线程
 - 多服共享 MySQL / MariaDB 时定时重读称号定义，一处修改全服生效
@@ -45,11 +45,11 @@ MikuTag 是一款基于 Paper Dialog 菜单的称号插件，兼容 Paper 与 Fo
 | 键 | 说明 | 默认 |
 | --- | --- | --- |
 | `storage.type` | 存储类型：`sqlite` / `mysql` / `mariadb`（切换类型需重启服务端） | `sqlite` |
-| `storage.flush-interval-seconds` | 数据异步批量写回的间隔（秒） | 30 |
+| `storage.flush-interval-seconds` | 数据异步批量写回的间隔（秒），小于 5 会被钳制为 5 | 30 |
 | `storage.mysql.*` / `storage.mariadb.*` | 远端库连接参数（host / port / database / user / password / parameters） | — |
 | `menu.page-size` | 商城 / 仓库 / 管理菜单每页显示的称号数量（1-20） | 8 |
 | `menu.click-throttle-ms` | 同一玩家两次菜单点击的最小间隔（毫秒），用于防连点；0 表示不限制 | 200 |
-| `sync.title-interval-seconds` | 称号定义定时重读间隔（秒），仅 mysql / mariadb 生效 | 10 |
+| `sync.title-interval-seconds` | 称号定义定时重读间隔（秒），小于 2 会被钳制为 2；仅 mysql / mariadb 生效 | 10 |
 | `placeholder.empty` | 玩家未佩戴称号时的返回内容（支持 MiniMessage 与 & 颜色码，按占位符形态自动转换） | 空 |
 | `text.legacy-colors` | 是否把 & / § 开头的旧式颜色码当作颜色码解析；关闭后 `&` 全部按字面显示 | true |
 | `display.prefix` / `display.suffix` | 展示称号时拼接的前后缀装饰（MiniMessage 或 & 颜色码），不会写入称号定义 | 空 |

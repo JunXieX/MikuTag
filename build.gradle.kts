@@ -3,7 +3,8 @@ plugins {
 }
 
 group = "dev.junxiex"
-version = "1.7.0"
+// 版本单一来源：gradle.properties；缺失时直接构建失败，不产出 unspecified
+version = providers.gradleProperty("version").get()
 description = "MikuTag - Paper/Folia title plugin with dialog menus"
 
 java {

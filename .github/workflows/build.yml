@@ -28,9 +28,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           TAG="${GITHUB_REF_NAME#v}"
-          VER=$(grep -oP '^version\s*=\s*"\K[^"]+' build.gradle.kts)
+          VER=$(grep -oP '^version=\K\S+' gradle.properties)
           if [ "$TAG" != "$VER" ]; then
-            echo "tag v$TAG 与 build.gradle.kts 的 version $VER 不一致" >&2
+            echo "tag v$TAG 与 gradle.properties 的 version=$VER 不一致" >&2
             exit 1
           fi
 
@@ -54,15 +54,15 @@ jobs:
         run: |
           VER="${GITHUB_REF_NAME#v}"
           echo "title=MikuTag ${VER}" >> "$GITHUB_OUTPUT"
-          # 版本规则（大版本.正式版.测试版）：第三位 > 0 视为测试版（预发布），= 0 为正式版
+          # 版本规则：第三位 = 0 为正式版，发 Release；> 0 为测试版，只留 Actions 产物
           PATCH="${VER##*.}"
           case "$PATCH" in
-            0) echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
-            *) echo "prerelease=true"  >> "$GITHUB_OUTPUT" ;;
+            0) echo "release=true"  >> "$GITHUB_OUTPUT" ;;
+            *) echo "release=false" >> "$GITHUB_OUTPUT" ;;
           esac
 
       - name: Render release notes from release commit
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') && steps.rel.outputs.release == 'true'
         run: |
           # 更新日志取自发版提交正文（正文即结构化更新日志）
           git log -1 --format=%b "$GITHUB_SHA" > release_body.md
@@ -72,10 +72,9 @@ jobs:
           fi
 
       - name: Publish Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') && steps.rel.outputs.release == 'true'
         uses: softprops/action-gh-release@v3
         with:
           name: ${{ steps.rel.outputs.title }}
           body_path: release_body.md
           files: build/libs/MikuTag-*.jar
-          prerelease: ${{ steps.rel.outputs.prerelease }}

@@ -236,9 +236,8 @@ public final class MenuService {
 
     private void doFeedback(Player player, Component message, String backAction, int backPage) {
         ConfigManager cfg = plugin.configManager();
-        String action = backAction == null || backAction.isEmpty() ? ClickPayload.BACK : backAction;
         ActionButton ok = ActionButton.builder(cfg.message("menu.back-button"))
-                .action(DialogAction.customClick(CLICK_KEY, ClickPayload.tag(action, "", backPage)))
+                .action(DialogAction.customClick(CLICK_KEY, ClickPayload.tag(backAction, "", backPage)))
                 .build();
         Dialogs.show(plugin, player, () -> Dialog.create(b -> b.empty()
                 .base(DialogBase.builder(cfg.message("menu.feedback-title"))
@@ -249,8 +248,7 @@ public final class MenuService {
     }
 
     /**
-     * 取已加载的玩家数据；未加载时发起一次补拉并提示，返回 null 表示本次无法打开菜单。
-     * 数据只会在加载完成后进入缓存，因此不需要再判断 {@code loaded()}。
+     * 取玩家数据；未加载时发起一次补拉并提示，返回 null 表示本次无法打开菜单。
      */
     private PlayerTagData ensureLoaded(Player player) {
         PlayerTagData data = plugin.tagService().data(player);
@@ -332,8 +330,8 @@ public final class MenuService {
     private Component warehouseTooltip(Title title, PlayerTagData data, long now, boolean equipped) {
         ConfigManager cfg = plugin.configManager();
         List<Component> lines = new ArrayList<>(title.descriptionLines());
-        Long expires = data.expiresAt(title.id());
-        if (expires == null || expires == 0L) {
+        long expires = data.expiresAt(title.id());
+        if (expires == 0L) {
             lines.add(cfg.message("detail.duration", null, "duration",
                     cfg.message("title.duration-permanent")));
         } else {
@@ -348,13 +346,13 @@ public final class MenuService {
         return Component.join(JoinConfiguration.newlines(), lines);
     }
 
-    private ActionButton navButton(Component text, String action, int page) {
+    static ActionButton navButton(Component text, String action, int page) {
         return ActionButton.builder(text)
                 .action(DialogAction.customClick(CLICK_KEY, ClickPayload.tag(action, "", page)))
                 .build();
     }
 
-    private int clamp(int page, int totalPages) {
+    static int clamp(int page, int totalPages) {
         if (page < 0) {
             return 0;
         }

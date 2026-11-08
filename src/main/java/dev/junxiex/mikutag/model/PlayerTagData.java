@@ -17,7 +17,6 @@ public final class PlayerTagData {
     private final Map<String, Long> owned = new ConcurrentHashMap<>();
     private final Map<String, Long> ownedView = Collections.unmodifiableMap(owned);
     private volatile String equipped = "";
-    private volatile boolean loaded;
 
     public PlayerTagData(UUID uuid) {
         this.uuid = uuid;
@@ -25,14 +24,6 @@ public final class PlayerTagData {
 
     public UUID uuid() {
         return uuid;
-    }
-
-    public boolean loaded() {
-        return loaded;
-    }
-
-    public void markLoaded() {
-        this.loaded = true;
     }
 
     /** 只读视图（非拷贝，反映最新状态），供遍历与计数使用。 */

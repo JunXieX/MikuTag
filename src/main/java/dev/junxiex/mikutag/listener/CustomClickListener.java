@@ -20,7 +20,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 处理 Dialog 菜单的 customClick 事件。事件在玩家连接线程触发，可直接操作玩家。
+ * 处理 Dialog 菜单的 customClick 事件。事件在玩家属主线程触发（Folia 为该玩家所在的区域线程），可直接操作玩家。
  * <p>
  * 该事件由客户端触发，可被伪造并高频重放，因此：
  * <ul>
@@ -52,16 +52,15 @@ public final class CustomClickListener implements Listener {
             return;
         }
 
-        ClickPayload.Parsed click = ClickPayload.parse(
-                ClickPayload.decode(event.getTag() == null ? null : event.getTag().string()));
+        var tag = event.getTag();
+        ClickPayload.Parsed click = ClickPayload.parse(ClickPayload.decode(tag == null ? null : tag.string()));
 
         MenuService menu = plugin.menuService();
         AdminMenuService admin = plugin.adminMenuService();
         TagService service = plugin.tagService();
 
         switch (click.action()) {
-            case ClickPayload.SHOP -> menu.openShop(player, click.page());
-            case ClickPayload.SHOP_PREV, ClickPayload.SHOP_NEXT, ClickPayload.BACK ->
+            case ClickPayload.SHOP, ClickPayload.SHOP_PREV, ClickPayload.SHOP_NEXT, ClickPayload.BACK ->
                     menu.openShop(player, click.page());
             case ClickPayload.SHOP_SELECT -> menu.openDetail(player, click.id(), click.page());
             case ClickPayload.SHOP_BUY -> {
@@ -86,16 +85,11 @@ public final class CustomClickListener implements Listener {
                         ClickPayload.WAREHOUSE, click.page());
             }
             case ClickPayload.WH_UNEQUIP -> {
-                // 卸下按钮只在"仓库中确有有效佩戴"时渲染；但按钮可被重放，
-                // 若此时已无有效佩戴（例如称号刚到期），必须回"未佩戴"而非谎报成功。
-                if (service.equippedId(player).isEmpty()) {
-                    menu.feedback(player, plugin.configManager().message("command.unequip-none"),
-                            ClickPayload.WAREHOUSE, click.page());
-                } else {
-                    service.unequip(player);
-                    menu.feedback(player, plugin.configManager().message("warehouse.unequip-ok"),
-                            ClickPayload.WAREHOUSE, click.page());
-                }
+                // 按钮可被重放：称号可能刚到期、数据可能未加载，按"是否真的卸下"回执，不谎报成功
+                boolean cleared = service.unequip(player);
+                menu.feedback(player, plugin.configManager().message(
+                                cleared ? "warehouse.unequip-ok" : "command.unequip-none"),
+                        ClickPayload.WAREHOUSE, click.page());
             }
             case ClickPayload.ADMIN, ClickPayload.ADMIN_PREV, ClickPayload.ADMIN_NEXT -> {
                 if (requireAdmin(player)) {
